@@ -4,14 +4,17 @@ const fs = require('fs-extra');
 const path = require('path');
 const OpenAI = require('openai');
 const multer = require('multer');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configurar multer para subida de imágenes
+// Configurar multer para subida de imágenes (guardar en logos/ para GitHub)
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'public', 'logos');
+        const uploadDir = path.join(__dirname, 'logos');
         await fs.ensureDir(uploadDir);
         cb(null, uploadDir);
     },
@@ -20,6 +23,48 @@ const storage = multer.diskStorage({
         cb(null, uniqueName);
     }
 });
+
+// Función para hacer commit de imagen a GitHub
+async function commitLogoToGitHub(filename, clientId) {
+    try {
+        const logosDir = path.join(__dirname, 'logos');
+        const filePath = path.join(logosDir, filename);
+        
+        // Verificar que el archivo existe
+        if (!await fs.pathExists(filePath)) {
+            console.warn(`⚠️ Archivo no encontrado: ${filePath}`);
+            return null;
+        }
+        
+        // Git add
+        await execPromise(`git add logos/${filename}`, { cwd: __dirname });
+        console.log(`✅ Logo agregado a git: logos/${filename}`);
+        
+        // Git commit
+        await execPromise(`git commit -m "Agregar logo para cliente ${clientId}"`, { cwd: __dirname });
+        console.log(`✅ Logo commiteado a git`);
+        
+        // Git push (en background para no bloquear)
+        exec(`git push origin main`, { cwd: __dirname }, (error, stdout, stderr) => {
+            if (error) {
+                console.error('⚠️ Error al hacer push (se puede hacer manualmente):', error.message);
+            } else {
+                console.log(`✅ Logo pusheado a GitHub: logos/${filename}`);
+            }
+        });
+        
+        // URL de GitHub raw (se actualizará después del push)
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const githubUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${filename}`;
+        
+        return githubUrl;
+    } catch (error) {
+        console.error('❌ Error al hacer commit a GitHub:', error);
+        // Fallback: usar URL local del servidor
+        return `${process.env.BASE_URL || 'https://reduncle-custom-lead.onrender.com'}/logos/${filename}`;
+    }
+}
 
 const upload = multer({
     storage: storage,
@@ -263,6 +308,85 @@ function replaceTextSections(html, personalizedSections) {
     return result;
 }
 
+// Función para encontrar la última imagen en logos/
+async function getLatestLogo() {
+    try {
+        const logosDir = path.join(__dirname, 'logos');
+        if (!await fs.pathExists(logosDir)) {
+            return null;
+        }
+        
+        const files = await fs.readdir(logosDir);
+        const imageFiles = files.filter(f => /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(f));
+        
+        if (imageFiles.length === 0) {
+            return null;
+        }
+        
+        // Ordenar por fecha de modificación (más reciente primero)
+        const filesWithStats = await Promise.all(
+            imageFiles.map(async (file) => {
+                const filePath = path.join(logosDir, file);
+                const stats = await fs.stat(filePath);
+                return { file, mtime: stats.mtime };
+            })
+        );
+        
+        filesWithStats.sort((a, b) => b.mtime - a.mtime);
+        const latestFile = filesWithStats[0].file;
+        
+        // URL de GitHub raw
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const githubUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${latestFile}`;
+        
+        console.log(`🖼️ Última imagen encontrada: ${latestFile}`);
+        return githubUrl;
+    } catch (error) {
+        console.error('❌ Error al buscar última imagen:', error);
+        return null;
+    }
+}
+
+// Función para extraer información del cliente del prompt
+function extractClientInfoFromPrompt(prompt) {
+    const info = {
+        name: null,
+        company: null,
+        details: null
+    };
+    
+    if (!prompt) return info;
+    
+    // Buscar nombre del cliente
+    const nameMatch = prompt.match(/(?:cliente|nombre)[\s:]+([^\n\r,]+)/i) || 
+                      prompt.match(/-?\s*Cliente:\s*([^\n\r,]+)/i) ||
+                      prompt.match(/-?\s*Nombre:\s*([^\n\r,]+)/i);
+    if (nameMatch) {
+        info.name = nameMatch[1].trim();
+    }
+    
+    // Buscar empresa
+    const companyMatch = prompt.match(/(?:empresa|company)[\s:]+([^\n\r,]+)/i) ||
+                         prompt.match(/-?\s*Empresa:\s*([^\n\r,]+)/i);
+    if (companyMatch) {
+        info.company = companyMatch[1].trim();
+    }
+    
+    // Buscar detalles adicionales (objetivos, alcance, etc.)
+    const detailsParts = [];
+    const objetivosMatch = prompt.match(/(?:objetivos|objetivo)[\s:]+([^\n\r]+)/i);
+    if (objetivosMatch) {
+        detailsParts.push('Objetivos: ' + objetivosMatch[1].trim().substring(0, 100));
+    }
+    
+    if (detailsParts.length > 0) {
+        info.details = detailsParts.join(' • ');
+    }
+    
+    return info;
+}
+
 // Función para personalizar el HTML con IA (OPTIMIZADA - solo envía textos)
 async function personalizeContent(clientData, templateHtml, customPrompt = null) {
     if (!openai) {
@@ -492,14 +616,28 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
             });
         }
         
-        const logoUrl = `${req.protocol}://${req.get('host')}/logos/${req.file.filename}`;
+        const filename = req.file.filename;
+        const clientId = req.body.clientId || 'temp'; // ID temporal si no se proporciona
         
-        console.log('✅ Logo subido:', logoUrl);
+        console.log(`📤 Subiendo logo: ${filename} para cliente: ${clientId}`);
+        
+        // Hacer commit a GitHub
+        const githubUrl = await commitLogoToGitHub(filename, clientId);
+        
+        // URL local como fallback
+        const localUrl = `${req.protocol}://${req.get('host')}/logos/${filename}`;
+        
+        // Usar URL de GitHub si está disponible, sino la local
+        const logoUrl = githubUrl || localUrl;
+        
+        console.log('✅ Logo subido y commiteado:', logoUrl);
         
         res.json({
             success: true,
             url: logoUrl,
-            filename: req.file.filename
+            filename: filename,
+            githubUrl: githubUrl,
+            localUrl: localUrl
         });
     } catch (error) {
         console.error('❌ Error al subir logo:', error);
@@ -510,14 +648,18 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
     }
 });
 
+// Endpoint para servir logos desde la carpeta logos/
+app.use('/logos', express.static(path.join(__dirname, 'logos')));
+
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {
     console.log('📥 POST /api/create-client recibido');
     console.log('📋 Body recibido:', req.body ? 'Sí' : 'No');
     
     try {
-        const { prompt } = req.body;
+        const { prompt, logoFilename } = req.body;
         console.log('📝 Prompt recibido:', prompt ? `Sí (${prompt.length} caracteres)` : 'No');
+        console.log('🖼️ Logo filename recibido:', logoFilename || 'No');
         
         if (!prompt || !prompt.trim()) {
             console.log('❌ Error: Prompt vacío');
@@ -537,6 +679,40 @@ app.post('/api/create-client', async (req, res) => {
         const templatePath = path.join(__dirname, 'index.html');
         const templateHtml = await fs.readFile(templatePath, 'utf-8');
         
+        // Extraer información del cliente del prompt
+        const clientInfo = extractClientInfoFromPrompt(promptText);
+        console.log('📋 Información del cliente extraída:', clientInfo);
+        
+        // Obtener logo del cliente (prioridad: logoFilename del body > extraer del prompt)
+        let logoUrl = null;
+        let finalLogoFilename = logoFilename || null;
+        
+        if (finalLogoFilename) {
+            // Construir URL de GitHub raw con el filename
+            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+            const githubBranch = process.env.GITHUB_BRANCH || 'main';
+            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${finalLogoFilename}`;
+            console.log('🖼️ Logo asociado al cliente:', finalLogoFilename);
+            console.log('🔗 URL del logo:', logoUrl);
+        } else {
+            // Intentar extraer del prompt como fallback
+            const logoUrlMatch = promptText.match(/Logo de la empresa:\s*(https?:\/\/[^\s\n]+)/i);
+            if (logoUrlMatch) {
+                logoUrl = logoUrlMatch[1];
+                // Extraer el filename de la URL si es de GitHub raw
+                const filenameMatch = logoUrl.match(/\/logos\/([^\/\?]+)/);
+                if (filenameMatch) {
+                    finalLogoFilename = filenameMatch[1];
+                }
+                console.log('🖼️ Logo encontrado en prompt:', logoUrl);
+                if (finalLogoFilename) {
+                    console.log('📁 Filename del logo extraído:', finalLogoFilename);
+                }
+            } else {
+                console.log('ℹ️ No se encontró logo para este cliente');
+            }
+        }
+        
         // Personalizar contenido con IA usando solo el prompt
         const personalizedHtml = await personalizeContent({}, templateHtml, promptText);
         
@@ -545,6 +721,9 @@ app.post('/api/create-client', async (req, res) => {
             id: clientId,
             data: {},
             prompt: promptText,
+            clientInfo: clientInfo,
+            logoUrl: logoUrl,
+            logoFilename: finalLogoFilename, // Filename del logo asociado a este cliente específico
             createdAt: new Date(),
             url: `/client/${clientId}`
         });
@@ -557,7 +736,26 @@ app.post('/api/create-client', async (req, res) => {
             personalizedHtml
         );
         
-        const clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
+        // Construir URL con parámetros de información del cliente y logo
+        let clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
+        const urlParams = new URLSearchParams();
+        
+        if (clientInfo.name) {
+            urlParams.append('clientName', clientInfo.name);
+        }
+        if (clientInfo.company) {
+            urlParams.append('clientCompany', clientInfo.company);
+        }
+        if (clientInfo.details) {
+            urlParams.append('clientDetails', clientInfo.details);
+        }
+        if (logoUrl) {
+            urlParams.append('logo', logoUrl);
+        }
+        
+        if (urlParams.toString()) {
+            clientUrl += '?' + urlParams.toString();
+        }
         
         // Log en consola (visible en Render logs)
         console.log('═══════════════════════════════════════════════════════');
@@ -601,17 +799,86 @@ app.get('/client/:clientId', async (req, res) => {
         // Intentar leer HTML personalizado del caché
         const cachedPath = path.join(__dirname, 'public', 'clients', `${clientId}.html`);
         
+        let html;
         if (await fs.pathExists(cachedPath)) {
-            const html = await fs.readFile(cachedPath, 'utf-8');
-            return res.send(html);
+            html = await fs.readFile(cachedPath, 'utf-8');
+        } else {
+            // Si no existe caché, generar de nuevo
+            const templatePath = path.join(__dirname, 'index.html');
+            const templateHtml = await fs.readFile(templatePath, 'utf-8');
+            html = await personalizeContent(client.data, templateHtml, client.prompt);
         }
         
-        // Si no existe caché, generar de nuevo
-        const templatePath = path.join(__dirname, 'index.html');
-        const templateHtml = await fs.readFile(templatePath, 'utf-8');
-        const personalizedHtml = await personalizeContent(client.data, templateHtml, client.prompt);
+        // Inyectar información del cliente en el HTML
+        const clientInfo = client.clientInfo || extractClientInfoFromPrompt(client.prompt);
         
-        res.send(personalizedHtml);
+        // Obtener logo específico de este cliente
+        let logoUrl = null;
+        if (client.logoFilename) {
+            // Construir URL de GitHub raw con el filename específico del cliente
+            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+            const githubBranch = process.env.GITHUB_BRANCH || 'main';
+            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${client.logoFilename}`;
+            console.log(`🖼️ Usando logo específico del cliente: ${client.logoFilename}`);
+        } else if (client.logoUrl) {
+            // Si hay logoUrl guardado, usarlo
+            logoUrl = client.logoUrl;
+            console.log(`🖼️ Usando logoUrl guardado: ${logoUrl}`);
+        } else {
+            // Intentar extraer del prompt como fallback
+            const logoUrlMatch = client.prompt.match(/Logo de la empresa:\s*(https?:\/\/[^\s\n]+)/i);
+            if (logoUrlMatch) {
+                logoUrl = logoUrlMatch[1];
+                console.log(`🖼️ Logo extraído del prompt: ${logoUrl}`);
+            }
+        }
+        
+        // Inyectar información del cliente
+        if (clientInfo.name) {
+            html = html.replace(
+                /<div id="client-name"[^>]*><\/div>/i,
+                `<div id="client-name">${clientInfo.name}</div>`
+            );
+        }
+        if (clientInfo.company) {
+            html = html.replace(
+                /<div id="client-company"[^>]*><\/div>/i,
+                `<div id="client-company">${clientInfo.company}</div>`
+            );
+        }
+        if (clientInfo.details) {
+            html = html.replace(
+                /<div id="client-details"[^>]*><\/div>/i,
+                `<div id="client-details">${clientInfo.details}</div>`
+            );
+        }
+        
+        // Mostrar contenedor si hay información
+        if (clientInfo.name || clientInfo.company || clientInfo.details) {
+            html = html.replace(
+                /<div id="client-info-container" style="display: none;">/i,
+                '<div id="client-info-container">'
+            );
+        }
+        
+        // Inyectar logo si está disponible
+        if (logoUrl) {
+            html = html.replace(
+                /<img id="logo-img"[^>]*src="[^"]*"/i,
+                `<img id="logo-img" src="${logoUrl}"`
+            );
+            html = html.replace(
+                /<img id="logo-img"[^>]*style="[^"]*"/i,
+                (match) => {
+                    if (match.includes('display: none')) {
+                        return match.replace('display: none', 'display: block');
+                    }
+                    return match;
+                }
+            );
+        }
+        
+        res.send(html);
     } catch (error) {
         console.error('Error al servir página del cliente:', error);
         res.status(500).send('Error al cargar la página');

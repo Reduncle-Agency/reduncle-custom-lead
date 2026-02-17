@@ -182,7 +182,11 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
         }
         
         const data = await response.json();
-        return data.url;
+        // Retornar tanto la URL como el filename para asociarlo al cliente
+        return {
+          url: data.url,
+          filename: data.filename
+        };
       } catch (error) {
         console.error('❌ Error al subir logo:', error);
         // Si falla, retornar null (no incluir logo en el prompt para evitar payload demasiado grande)
@@ -220,14 +224,16 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
        
        // Subir logo primero si existe
        let finalPrompt = prompt;
+       let logoFilename = null;
        if (logoFile) {
          submitBtn.textContent = '⏳ Subiendo logo...';
          try {
-           logoUrl = await uploadLogo();
-           if (logoUrl) {
-             // Agregar la URL del logo al prompt
-             finalPrompt = `${prompt}\n\nLogo de la empresa: ${logoUrl}`;
-             console.log('✅ Logo subido:', logoUrl);
+           const logoResult = await uploadLogo();
+           if (logoResult && logoResult.filename) {
+             logoFilename = logoResult.filename;
+             console.log('✅ Logo subido y asociado:', logoFilename);
+             console.log('🔗 URL del logo:', logoResult.url);
+             // NO agregar la URL al prompt, el servidor la construirá desde el filename
            }
          } catch (error) {
            console.error('Error al subir logo:', error);
@@ -238,7 +244,8 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
        submitBtn.textContent = '⏳ Generando página... (puede tardar 1-3 min)';
        
        const formData = {
-         prompt: finalPrompt
+         prompt: finalPrompt,
+         logoFilename: logoFilename // Enviar el filename para asociarlo específicamente a este cliente
        };
        
       try {

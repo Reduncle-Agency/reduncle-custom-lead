@@ -109,6 +109,81 @@
                 }
             }
 
+            #client-info-container {
+                position: fixed;
+                top: 100px;
+                left: 0;
+                width: 100%;
+                z-index: 99;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 0 20px;
+                pointer-events: none;
+                transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            #client-info-box {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px) saturate(180%);
+                -webkit-backdrop-filter: blur(20px) saturate(180%);
+                border-radius: 16px;
+                padding: 24px 40px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
+                border: 1px solid rgba(0, 0, 0, 0.08);
+                text-align: center;
+                max-width: 800px;
+                width: 100%;
+            }
+
+            .client-info-item {
+                margin: 8px 0;
+                font-size: 18px;
+                font-weight: 600;
+                color: #1a1a1a;
+                transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            #client-name {
+                font-size: 28px;
+                font-weight: 700;
+                color: #ff0000;
+                margin-bottom: 12px;
+            }
+
+            #client-company {
+                font-size: 22px;
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 8px;
+            }
+
+            #client-details {
+                font-size: 16px;
+                font-weight: 400;
+                color: #666;
+                line-height: 1.6;
+            }
+
+            @media (max-width: 768px) {
+                #client-info-container {
+                    top: 80px;
+                    padding: 0 15px;
+                }
+                #client-info-box {
+                    padding: 20px 24px;
+                }
+                #client-name {
+                    font-size: 24px;
+                }
+                #client-company {
+                    font-size: 20px;
+                }
+                #client-details {
+                    font-size: 14px;
+                }
+            }
+
             #content {
                 position: relative;
                 z-index: 10;
@@ -548,6 +623,15 @@
         <div id="logo-container">
             <img id="logo-img" src="" alt="Logo" style="display: none;">
         </div>
+        
+        <!-- Información del cliente arriba -->
+        <div id="client-info-container" style="display: none;">
+            <div id="client-info-box">
+                <div id="client-name" class="client-info-item"></div>
+                <div id="client-company" class="client-info-item"></div>
+                <div id="client-details" class="client-info-item"></div>
+            </div>
+        </div>
 
         <div id="content">
             <div class="section">
@@ -959,6 +1043,30 @@
                     logoContainer.style.opacity = eased > 0.5 ? '1' : '0.9';
                 }
                 
+                // Actualizar información del cliente según el scroll
+                const clientInfoBox = document.getElementById('client-info-box');
+                if (clientInfoBox) {
+                    if (eased < 0.5) {
+                        // Fondo claro
+                        clientInfoBox.style.background = 'rgba(255, 255, 255, 0.95)';
+                        clientInfoBox.style.borderColor = 'rgba(0, 0, 0, 0.08)';
+                    } else {
+                        // Fondo oscuro
+                        clientInfoBox.style.background = `rgba(${bgR}, ${bgG}, ${bgB}, 0.9)`;
+                        clientInfoBox.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    }
+                }
+                
+                const clientCompany = document.getElementById('client-company');
+                if (clientCompany) {
+                    clientCompany.style.color = eased < 0.5 ? '#333' : textColor;
+                }
+                
+                const clientDetails = document.getElementById('client-details');
+                if (clientDetails) {
+                    clientDetails.style.color = eased < 0.5 ? '#666' : textColor;
+                }
+                
                 // Actualizar textos del circuito para mejor contraste
                 const circuitDescriptions = document.querySelectorAll('.circuit-step-description');
                 circuitDescriptions.forEach(desc => {
@@ -1362,11 +1470,52 @@
                 }
             }
             
+            // Cargar información del cliente desde parámetros de URL
+            function loadClientInfo() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const clientName = urlParams.get('clientName');
+                const clientCompany = urlParams.get('clientCompany');
+                const clientDetails = urlParams.get('clientDetails');
+                
+                const container = document.getElementById('client-info-container');
+                const nameEl = document.getElementById('client-name');
+                const companyEl = document.getElementById('client-company');
+                const detailsEl = document.getElementById('client-details');
+                
+                if (!container || !nameEl || !companyEl || !detailsEl) return;
+                
+                let hasInfo = false;
+                
+                if (clientName) {
+                    nameEl.textContent = decodeURIComponent(clientName);
+                    hasInfo = true;
+                }
+                
+                if (clientCompany) {
+                    companyEl.textContent = decodeURIComponent(clientCompany);
+                    hasInfo = true;
+                }
+                
+                if (clientDetails) {
+                    detailsEl.textContent = decodeURIComponent(clientDetails);
+                    hasInfo = true;
+                }
+                
+                if (hasInfo) {
+                    container.style.display = 'flex';
+                    console.log('✅ Información del cliente cargada');
+                }
+            }
+            
             // Cargar logo al iniciar
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', loadLogo);
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadLogo();
+                    loadClientInfo();
+                });
             } else {
                 loadLogo();
+                loadClientInfo();
             }
         </script>
     </div>
