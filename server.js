@@ -324,49 +324,86 @@ function extractClientInfoFromPrompt(prompt) {
     
     if (!prompt) return info;
     
-    // Buscar nombre del cliente (mejorado)
-    const nameMatch = prompt.match(/-?\s*(?:Cliente|Nombre)[\s:]+([^\n\r\-]+)/i) || 
-                      prompt.match(/(?:cliente|nombre)[\s:]+([^\n\r\-]+)/i);
-    if (nameMatch) {
-        info.nombre = nameMatch[1].trim().replace(/^-\s*/, '');
+    // Función auxiliar para extraer contenido de una sección
+    function extractSection(titlePattern, stopPattern) {
+        const regex = new RegExp(`${titlePattern}([\\s\\S]*?)(?=${stopPattern}|$)`, 'i');
+        const match = prompt.match(regex);
+        if (match) {
+            let content = match[1].trim();
+            // Limpiar guiones iniciales y espacios
+            content = content.replace(/^[-•]\s*/gm, '').trim();
+            // Eliminar líneas vacías al inicio y final
+            content = content.replace(/^\n+|\n+$/g, '');
+            return content;
+        }
+        return null;
     }
     
-    // Buscar empresa (mejorado)
-    const companyMatch = prompt.match(/-?\s*Empresa[\s:]+([^\n\r\-]+)/i) ||
-                         prompt.match(/(?:empresa|company)[\s:]+([^\n\r\-]+)/i);
-    if (companyMatch) {
-        info.empresa = companyMatch[1].trim().replace(/^-\s*/, '');
+    // Extraer información del cliente (sección especial)
+    const clienteSection = extractSection('Información del cliente:', '(?:Objetivos|Alcance|Timeline|Equipo|Precio|Tono|Estilo)');
+    if (clienteSection) {
+        // Buscar Nombre dentro de la sección de información del cliente
+        const nameMatch = clienteSection.match(/-?\s*Nombre[\s:]+([^\n\r]+)/i);
+        if (nameMatch) {
+            info.nombre = nameMatch[1].trim().replace(/^-\s*/, '');
+        }
+        
+        // Buscar Empresa dentro de la sección de información del cliente
+        const companyMatch = clienteSection.match(/-?\s*Empresa[\s:]+([^\n\r]+)/i);
+        if (companyMatch) {
+            info.empresa = companyMatch[1].trim().replace(/^-\s*/, '');
+        }
     }
     
-    // Buscar objetivos (mejorado - captura hasta el siguiente campo o fin de línea)
-    const objetivosMatch = prompt.match(/-?\s*Objetivos?[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Alcance|Timeline|Equipo|Precio|Empresa|Cliente|Nombre)|$)/is);
-    if (objetivosMatch) {
-        info.objetivos = objetivosMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Alcance|Timeline|Equipo|Precio)/i, '');
+    // Si no se encontró en la sección, buscar directamente
+    if (!info.nombre) {
+        const nameMatch = prompt.match(/-?\s*Nombre[\s:]+([^\n\r]+)/i);
+        if (nameMatch) {
+            info.nombre = nameMatch[1].trim().replace(/^-\s*/, '');
+        }
     }
     
-    // Buscar alcance (mejorado)
-    const alcanceMatch = prompt.match(/-?\s*Alcance[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Timeline|Equipo|Precio|Objetivos|Empresa|Cliente|Nombre)|$)/is);
-    if (alcanceMatch) {
-        info.alcance = alcanceMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Timeline|Equipo|Precio|Objetivos)/i, '');
+    if (!info.empresa) {
+        const companyMatch = prompt.match(/-?\s*Empresa[\s:]+([^\n\r]+)/i);
+        if (companyMatch) {
+            info.empresa = companyMatch[1].trim().replace(/^-\s*/, '');
+        }
     }
     
-    // Buscar timeline (mejorado)
-    const timelineMatch = prompt.match(/-?\s*Timeline[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Equipo|Precio|Objetivos|Alcance|Empresa|Cliente|Nombre)|$)/is);
-    if (timelineMatch) {
-        info.timeline = timelineMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Equipo|Precio|Objetivos|Alcance)/i, '');
+    // Extraer Objetivos del proyecto
+    info.objetivos = extractSection('Objetivos (?:del proyecto)?:', '(?:Alcance|Timeline|Equipo|Precio|Tono|Estilo)');
+    if (!info.objetivos) {
+        info.objetivos = extractSection('Objetivos:', '(?:Alcance|Timeline|Equipo|Precio|Tono|Estilo)');
     }
     
-    // Buscar equipo (mejorado)
-    const equipoMatch = prompt.match(/-?\s*Equipo[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Precio|Objetivos|Alcance|Timeline|Empresa|Cliente|Nombre)|$)/is);
-    if (equipoMatch) {
-        info.equipo = equipoMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Precio|Objetivos|Alcance|Timeline)/i, '');
+    // Extraer Alcance del proyecto
+    info.alcance = extractSection('Alcance (?:del proyecto)?:', '(?:Timeline|Equipo|Precio|Objetivos|Tono|Estilo)');
+    if (!info.alcance) {
+        info.alcance = extractSection('Alcance:', '(?:Timeline|Equipo|Precio|Objetivos|Tono|Estilo)');
     }
     
-    // Buscar precio (mejorado)
-    const precioMatch = prompt.match(/-?\s*Precio[\s:]+([^\n\r€$]+?)(?:\n|$)/i);
+    // Extraer Timeline
+    info.timeline = extractSection('Timeline:', '(?:Equipo|Precio|Objetivos|Alcance|Tono|Estilo)');
+    
+    // Extraer Equipo
+    info.equipo = extractSection('Equipo:', '(?:Precio|Objetivos|Alcance|Timeline|Tono|Estilo)');
+    
+    // Extraer Precio (puede tener símbolos €, $, etc.)
+    const precioMatch = prompt.match(/Precio[\s:]+([^\n\r]+?)(?:\n\s*(?:Tono|Estilo|Equipo|Objetivos|Alcance|Timeline)|$)/is);
     if (precioMatch) {
-        info.precio = precioMatch[1].trim().replace(/^-\s*/, '');
+        info.precio = precioMatch[1].trim().replace(/^[-•]\s*/, '');
     }
+    
+    // Log para debugging
+    console.log('📋 Información extraída:', {
+        nombre: info.nombre,
+        empresa: info.empresa,
+        objetivos: info.objetivos ? info.objetivos.substring(0, 50) + '...' : null,
+        alcance: info.alcance ? info.alcance.substring(0, 50) + '...' : null,
+        timeline: info.timeline ? info.timeline.substring(0, 50) + '...' : null,
+        equipo: info.equipo ? info.equipo.substring(0, 50) + '...' : null,
+        precio: info.precio
+    });
     
     return info;
 }
