@@ -79,25 +79,30 @@ async function loadClientsFromFile() {
 
 // Función para extraer solo las secciones de texto que necesitan personalización
 function extractTextSections(html) {
-    // Extraer contenido de las secciones principales usando regex
+    // Extraer secciones completas (incluyendo el div.section) para mantener estilos
+    const section1 = html.match(/<div class="section">\s*<h1[^>]*>([\s\S]*?)<\/h1>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
+    const sectionObjetivos = html.match(/<div class="section">\s*<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
+    const sectionAlcance = html.match(/<div class="section">\s*<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
+    const sectionTimeline = html.match(/<div class="section">\s*<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
+    const sectionEquipo = html.match(/<div class="section">\s*<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
+    const sectionPrecio = html.match(/<div class="section">\s*<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
+    const sectionContacto = html.match(/<div class="section"[^>]*>\s*<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>|$)/i);
+    
+    // Extraer solo el contenido interno (sin el div.section) para enviar a ChatGPT
     const sections = {
-        h1: html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || '',
-        objetivos: html.match(/<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
-        alcance: html.match(/<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
-        timeline: html.match(/<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
-        equipo: html.match(/<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
-        precio: html.match(/<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
-        contacto: html.match(/<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || ''
+        h1: section1 ? (section1[1] + (section1[2] || '')) : '',
+        objetivos: sectionObjetivos ? sectionObjetivos[1] : '',
+        alcance: sectionAlcance ? sectionAlcance[1] : '',
+        timeline: sectionTimeline ? sectionTimeline[1] : '',
+        equipo: sectionEquipo ? sectionEquipo[1] : '',
+        precio: sectionPrecio ? sectionPrecio[1] : '',
+        contacto: sectionContacto ? sectionContacto[1] : ''
     };
     
-    // Limpiar HTML pero mantener estructura básica
+    // NO remover estilos ni clases - mantener todo intacto
     Object.keys(sections).forEach(key => {
         if (sections[key]) {
-            // Remover atributos innecesarios pero mantener etiquetas
-            sections[key] = sections[key]
-                .replace(/style="[^"]*"/gi, '')
-                .replace(/class="[^"]*"/gi, '')
-                .trim();
+            sections[key] = sections[key].trim();
         }
     });
     
@@ -108,27 +113,65 @@ function extractTextSections(html) {
 function replaceTextSections(html, personalizedSections) {
     let result = html;
     
-    // Reemplazar cada sección
+    // Reemplazar cada sección completa (incluyendo el div.section)
+    // Sección 1 (h1)
     if (personalizedSections.h1) {
-        result = result.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, `<h1>${personalizedSections.h1}</h1>`);
+        const h1Match = personalizedSections.h1.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        const restContent = personalizedSections.h1.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, '').trim();
+        if (h1Match) {
+            result = result.replace(
+                /<div class="section">\s*<h1[^>]*>[\s\S]*?<\/h1>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i,
+                `<div class="section">\n                <h1>${h1Match[1]}</h1>${restContent ? '\n                ' + restContent : ''}\n            </div>`
+            );
+        }
     }
+    
+    // Sección Objetivos
     if (personalizedSections.objetivos) {
-        result = result.replace(/(<h2[^>]*>🎯 Objetivos<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.objetivos}`);
+        result = result.replace(
+            /<div class="section">\s*<h2[^>]*>🎯 Objetivos<\/h2>[\s\S]*?<\/div>\s*(?=<div class="section">|<\/div>)/i,
+            `<div class="section">\n                <h2>🎯 Objetivos</h2>\n${personalizedSections.objetivos}\n            </div>`
+        );
     }
+    
+    // Sección Alcance
     if (personalizedSections.alcance) {
-        result = result.replace(/(<h2[^>]*>📋 Alcance del Proyecto<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.alcance}`);
+        result = result.replace(
+            /<div class="section">\s*<h2[^>]*>📋 Alcance del Proyecto<\/h2>[\s\S]*?<\/div>\s*(?=<div class="section">|<\/div>)/i,
+            `<div class="section">\n                <h2>📋 Alcance del Proyecto</h2>\n${personalizedSections.alcance}\n            </div>`
+        );
     }
+    
+    // Sección Timeline
     if (personalizedSections.timeline) {
-        result = result.replace(/(<h2[^>]*>📅 Timeline y Planificación<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.timeline}`);
+        result = result.replace(
+            /<div class="section">\s*<h2[^>]*>📅 Timeline y Planificación<\/h2>[\s\S]*?<\/div>\s*(?=<div class="section">|<\/div>)/i,
+            `<div class="section">\n                <h2>📅 Timeline y Planificación</h2>\n${personalizedSections.timeline}\n            </div>`
+        );
     }
+    
+    // Sección Equipo
     if (personalizedSections.equipo) {
-        result = result.replace(/(<h2[^>]*>👥 Con Quien Trabajamos<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.equipo}`);
+        result = result.replace(
+            /<div class="section">\s*<h2[^>]*>👥 Con Quien Trabajamos<\/h2>[\s\S]*?<\/div>\s*(?=<div class="section">|<\/div>)/i,
+            `<div class="section">\n                <h2>👥 Con Quien Trabajamos</h2>\n${personalizedSections.equipo}\n            </div>`
+        );
     }
+    
+    // Sección Precio
     if (personalizedSections.precio) {
-        result = result.replace(/(<h2[^>]*>💰 Inversión<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.precio}`);
+        result = result.replace(
+            /<div class="section">\s*<h2[^>]*>💰 Inversión<\/h2>[\s\S]*?<\/div>\s*(?=<div class="section">|<\/div>)/i,
+            `<div class="section">\n                <h2>💰 Inversión</h2>\n${personalizedSections.precio}\n            </div>`
+        );
     }
+    
+    // Sección Contacto
     if (personalizedSections.contacto) {
-        result = result.replace(/(<h2[^>]*>📞 Contacto<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.contacto}`);
+        result = result.replace(
+            /<div class="section"[^>]*>\s*<h2[^>]*>📞 Contacto<\/h2>[\s\S]*?<\/div>\s*(?=<div class="section">|<\/div>|$)/i,
+            `<div class="section" style="margin-bottom: 600px !important;">\n                <h2>📞 Contacto</h2>\n${personalizedSections.contacto}\n            </div>`
+        );
     }
     
     return result;
@@ -183,11 +226,13 @@ ${textSections.contacto}
         if (customPrompt) {
             prompt = `${customPrompt}
 
-INSTRUCCIONES:
-- Personaliza SOLO los textos de las secciones siguientes
-- Mantén la estructura HTML básica (etiquetas <h1>, <h2>, <p>, <li>, etc.)
+INSTRUCCIONES CRÍTICAS:
+- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <p>, <li>, <div class="circuit-step-title">, etc.)
+- Mantén TODA la estructura HTML intacta (incluyendo <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
+- Mantén TODOS los atributos (class, id, data-step, style, etc.)
 - NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞)
-- Devuelve SOLO el HTML de las secciones personalizadas, sin explicaciones
+- NO cambies la estructura de circuitos, solo personaliza los textos dentro de circuit-step-title y circuit-step-description
+- Devuelve SOLO el HTML completo de las secciones sin explicaciones ni markdown
 
 HTML a personalizar:
 ${simplifiedHtml}`;
@@ -201,11 +246,13 @@ Timeline: ${clientData.timeline || ''}
 Equipo: ${clientData.equipo || ''}
 Precio: ${clientData.precio || ''}
 
-INSTRUCCIONES:
-- Personaliza SOLO los textos de las secciones siguientes
-- Mantén la estructura HTML básica (etiquetas <h1>, <h2>, <p>, <li>, etc.)
+INSTRUCCIONES CRÍTICAS:
+- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <p>, <li>, <div class="circuit-step-title">, etc.)
+- Mantén TODA la estructura HTML intacta (incluyendo <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
+- Mantén TODOS los atributos (class, id, data-step, style, etc.)
 - NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞)
-- Devuelve SOLO el HTML de las secciones personalizadas, sin explicaciones
+- NO cambies la estructura de circuitos, solo personaliza los textos dentro de circuit-step-title y circuit-step-description
+- Devuelve SOLO el HTML completo de las secciones sin explicaciones ni markdown
 
 HTML a personalizar:
 ${simplifiedHtml}`;
@@ -219,13 +266,15 @@ ${simplifiedHtml}`;
             messages: [
                 {
                     role: "system",
-                    content: `Eres un experto en personalizar textos de páginas web. 
+                    content: `Eres un experto en personalizar SOLO TEXTOS de páginas web manteniendo TODA la estructura HTML.
 
-REGLAS:
-- Solo personaliza los TEXTOS dentro de las etiquetas HTML
-- Mantén TODAS las etiquetas HTML intactas (<h1>, <h2>, <p>, <li>, <ul>, etc.)
-- NO cambies emojis, clases, IDs, o atributos
-- Devuelve SOLO el HTML personalizado sin explicaciones ni markdown`
+REGLAS CRÍTICAS:
+- Solo personaliza los TEXTOS dentro de las etiquetas HTML (contenido de <h1>, <h2>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.)
+- Mantén TODAS las etiquetas HTML intactas (incluyendo <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
+- Mantén TODOS los atributos (class, id, data-step, style, etc.)
+- NO cambies emojis (🎯, 📋, 📅, 👥, 💰, 📞)
+- NO cambies estructura de circuitos, solo los textos dentro de circuit-step-title y circuit-step-description
+- Devuelve SOLO el HTML completo de las secciones sin explicaciones ni markdown`
                 },
                 {
                     role: "user",
@@ -253,14 +302,26 @@ REGLAS:
         console.log('🔄 Reemplazando secciones en HTML original...');
         
         // Extraer las secciones personalizadas del resultado
+        // ChatGPT devuelve el contenido después de cada h2, necesitamos capturarlo todo
         const personalizedSections = {
-            h1: personalizedHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || textSections.h1,
-            objetivos: personalizedHtml.match(/<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.objetivos,
-            alcance: personalizedHtml.match(/<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.alcance,
-            timeline: personalizedHtml.match(/<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.timeline,
-            equipo: personalizedHtml.match(/<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.equipo,
-            precio: personalizedHtml.match(/<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.precio,
-            contacto: personalizedHtml.match(/<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.contacto
+            h1: (() => {
+                const match = personalizedHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                if (match) {
+                    // Si hay contenido después del h1, incluirlo
+                    const afterH1 = personalizedHtml.split(/<\/h1>/i)[1];
+                    if (afterH1 && !afterH1.trim().startsWith('<h2')) {
+                        return match[1] + afterH1.split(/<h2/i)[0];
+                    }
+                    return match[1];
+                }
+                return textSections.h1;
+            })(),
+            objetivos: personalizedHtml.match(/<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.objetivos,
+            alcance: personalizedHtml.match(/<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.alcance,
+            timeline: personalizedHtml.match(/<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.timeline,
+            equipo: personalizedHtml.match(/<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.equipo,
+            precio: personalizedHtml.match(/<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.precio,
+            contacto: personalizedHtml.match(/<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.contacto
         };
         
         // Reemplazar en el HTML original
