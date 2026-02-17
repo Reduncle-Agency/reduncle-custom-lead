@@ -32,6 +32,45 @@ if (process.env.OPENAI_API_KEY) {
 // Almacenamiento en memoria (en producción usar base de datos)
 const clients = new Map();
 
+// Función para guardar clientes en archivo JSON (persistencia básica)
+async function saveClientsToFile() {
+    try {
+        const clientsData = Array.from(clients.entries()).map(([id, client]) => ({
+            id: client.id,
+            prompt: client.prompt,
+            createdAt: client.createdAt,
+            url: client.url
+        }));
+        const dataPath = path.join(__dirname, 'data', 'clients.json');
+        await fs.ensureDir(path.dirname(dataPath));
+        await fs.writeJson(dataPath, clientsData, { spaces: 2 });
+    } catch (error) {
+        console.error('Error al guardar clientes:', error);
+    }
+}
+
+// Cargar clientes al iniciar (si existe el archivo)
+async function loadClientsFromFile() {
+    try {
+        const dataPath = path.join(__dirname, 'data', 'clients.json');
+        if (await fs.pathExists(dataPath)) {
+            const clientsData = await fs.readJson(dataPath);
+            clientsData.forEach(client => {
+                clients.set(client.id, {
+                    id: client.id,
+                    data: {},
+                    prompt: client.prompt,
+                    createdAt: new Date(client.createdAt),
+                    url: client.url
+                });
+            });
+            console.log(`✅ Cargados ${clients.size} clientes desde archivo`);
+        }
+    } catch (error) {
+        console.error('Error al cargar clientes:', error);
+    }
+}
+
 // Función para personalizar el HTML con IA
 async function personalizeContent(clientData, templateHtml, customPrompt = null) {
     if (!openai) {
