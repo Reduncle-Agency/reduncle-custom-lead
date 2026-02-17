@@ -56,10 +56,10 @@ function init() {
     pointLight.position.set(0, 5, 0);
     scene.add(pointLight);
 
-    // Cargar el modelo del coche desde CDN de Shopify
+    // Cargar el modelo del coche
     const loader = new GLTFLoader();
     loader.load(
-        'https://cdn.shopify.com/3d/models/0a1c5e3c0fb6a380/Meshy_AI_Red_Formula_1_0217154143_texture.glb',
+        './Meshy_AI_Red_Formula_1_0217154143_texture.glb',
         function(gltf) {
             car = gltf.scene;
             

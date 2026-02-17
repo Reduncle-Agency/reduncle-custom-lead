@@ -25,5 +25,5 @@ node_modules/
 dist/
 build/
 
-# Archivos GLB grandes (se usa URL del CDN)
-*.glb
+# Archivos GLB - COMENTADO para subir el archivo
+# *.glb
