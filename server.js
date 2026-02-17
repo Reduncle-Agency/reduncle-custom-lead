@@ -324,49 +324,48 @@ function extractClientInfoFromPrompt(prompt) {
     
     if (!prompt) return info;
     
-    // Buscar nombre del cliente
-    const nameMatch = prompt.match(/(?:cliente|nombre)[\s:]+([^\n\r,]+)/i) || 
-                      prompt.match(/-?\s*Cliente:\s*([^\n\r,]+)/i) ||
-                      prompt.match(/-?\s*Nombre:\s*([^\n\r,]+)/i);
+    // Buscar nombre del cliente (mejorado)
+    const nameMatch = prompt.match(/-?\s*(?:Cliente|Nombre)[\s:]+([^\n\r\-]+)/i) || 
+                      prompt.match(/(?:cliente|nombre)[\s:]+([^\n\r\-]+)/i);
     if (nameMatch) {
-        info.nombre = nameMatch[1].trim();
+        info.nombre = nameMatch[1].trim().replace(/^-\s*/, '');
     }
     
-    // Buscar empresa
-    const companyMatch = prompt.match(/(?:empresa|company)[\s:]+([^\n\r,]+)/i) ||
-                         prompt.match(/-?\s*Empresa:\s*([^\n\r,]+)/i);
+    // Buscar empresa (mejorado)
+    const companyMatch = prompt.match(/-?\s*Empresa[\s:]+([^\n\r\-]+)/i) ||
+                         prompt.match(/(?:empresa|company)[\s:]+([^\n\r\-]+)/i);
     if (companyMatch) {
-        info.empresa = companyMatch[1].trim();
+        info.empresa = companyMatch[1].trim().replace(/^-\s*/, '');
     }
     
-    // Buscar objetivos
-    const objetivosMatch = prompt.match(/(?:objetivos|objetivo)[\s:]+([^\n\r]+?)(?:\n|$|Alcance|Timeline|Equipo|Precio)/i);
+    // Buscar objetivos (mejorado - captura hasta el siguiente campo o fin de línea)
+    const objetivosMatch = prompt.match(/-?\s*Objetivos?[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Alcance|Timeline|Equipo|Precio|Empresa|Cliente|Nombre)|$)/is);
     if (objetivosMatch) {
-        info.objetivos = objetivosMatch[1].trim();
+        info.objetivos = objetivosMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Alcance|Timeline|Equipo|Precio)/i, '');
     }
     
-    // Buscar alcance
-    const alcanceMatch = prompt.match(/(?:alcance|scope)[\s:]+([^\n\r]+?)(?:\n|$|Timeline|Equipo|Precio|Objetivos)/i);
+    // Buscar alcance (mejorado)
+    const alcanceMatch = prompt.match(/-?\s*Alcance[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Timeline|Equipo|Precio|Objetivos|Empresa|Cliente|Nombre)|$)/is);
     if (alcanceMatch) {
-        info.alcance = alcanceMatch[1].trim();
+        info.alcance = alcanceMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Timeline|Equipo|Precio|Objetivos)/i, '');
     }
     
-    // Buscar timeline
-    const timelineMatch = prompt.match(/(?:timeline|tiempo|duraci[oó]n|plazo)[\s:]+([^\n\r]+?)(?:\n|$|Equipo|Precio|Objetivos|Alcance)/i);
+    // Buscar timeline (mejorado)
+    const timelineMatch = prompt.match(/-?\s*Timeline[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Equipo|Precio|Objetivos|Alcance|Empresa|Cliente|Nombre)|$)/is);
     if (timelineMatch) {
-        info.timeline = timelineMatch[1].trim();
+        info.timeline = timelineMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Equipo|Precio|Objetivos|Alcance)/i, '');
     }
     
-    // Buscar equipo
-    const equipoMatch = prompt.match(/(?:equipo|team)[\s:]+([^\n\r]+?)(?:\n|$|Precio|Objetivos|Alcance|Timeline)/i);
+    // Buscar equipo (mejorado)
+    const equipoMatch = prompt.match(/-?\s*Equipo[\s:]+([^\n\r]+?)(?:\n\s*[-•]?\s*(?:Precio|Objetivos|Alcance|Timeline|Empresa|Cliente|Nombre)|$)/is);
     if (equipoMatch) {
-        info.equipo = equipoMatch[1].trim();
+        info.equipo = equipoMatch[1].trim().replace(/^-\s*/, '').replace(/\n\s*[-•]?\s*(?:Precio|Objetivos|Alcance|Timeline)/i, '');
     }
     
-    // Buscar precio
-    const precioMatch = prompt.match(/(?:precio|price|coste|costo)[\s:]+([^\n\r€$]+)/i);
+    // Buscar precio (mejorado)
+    const precioMatch = prompt.match(/-?\s*Precio[\s:]+([^\n\r€$]+?)(?:\n|$)/i);
     if (precioMatch) {
-        info.precio = precioMatch[1].trim();
+        info.precio = precioMatch[1].trim().replace(/^-\s*/, '');
     }
     
     return info;
@@ -657,9 +656,9 @@ app.post('/api/create-client', async (req, res) => {
     console.log('📋 Body recibido:', req.body ? 'Sí' : 'No');
     
     try {
-        const { prompt, logoFilename } = req.body;
+        const { prompt, logoUrl: logoUrlFromBody } = req.body;
         console.log('📝 Prompt recibido:', prompt ? `Sí (${prompt.length} caracteres)` : 'No');
-        console.log('🖼️ Logo filename recibido:', logoFilename || 'No');
+        console.log('🖼️ Logo URL recibida:', logoUrlFromBody || 'No');
         
         if (!prompt || !prompt.trim()) {
             console.log('❌ Error: Prompt vacío');
@@ -683,34 +682,20 @@ app.post('/api/create-client', async (req, res) => {
         const clientInfo = extractClientInfoFromPrompt(promptText);
         console.log('📋 Información del cliente extraída:', clientInfo);
         
-        // Obtener logo del cliente (prioridad: logoFilename del body > extraer del prompt)
-        let logoUrl = null;
-        let finalLogoFilename = logoFilename || null;
+        // Obtener logo del cliente (prioridad: logoUrl del body > extraer del prompt)
+        let logoUrl = logoUrlFromBody || null;
         
-        if (finalLogoFilename) {
-            // Construir URL de GitHub raw con el filename
-            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
-            const githubBranch = process.env.GITHUB_BRANCH || 'main';
-            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${finalLogoFilename}`;
-            console.log('🖼️ Logo asociado al cliente:', finalLogoFilename);
-            console.log('🔗 URL del logo (GitHub raw):', logoUrl);
-        } else {
+        if (!logoUrl) {
             // Intentar extraer del prompt como fallback
             const logoUrlMatch = promptText.match(/Logo de la empresa:\s*(https?:\/\/[^\s\n]+)/i);
             if (logoUrlMatch) {
                 logoUrl = logoUrlMatch[1];
-                // Extraer el filename de la URL si es de GitHub raw
-                const filenameMatch = logoUrl.match(/\/logos\/([^\/\?]+)/);
-                if (filenameMatch) {
-                    finalLogoFilename = filenameMatch[1];
-                }
                 console.log('🖼️ Logo encontrado en prompt:', logoUrl);
-                if (finalLogoFilename) {
-                    console.log('📁 Filename del logo extraído:', finalLogoFilename);
-                }
             } else {
                 console.log('ℹ️ No se encontró logo para este cliente');
             }
+        } else {
+            console.log('🖼️ Logo recibido desde formulario:', logoUrl);
         }
         
         // Personalizar contenido con IA usando solo el prompt
@@ -722,8 +707,7 @@ app.post('/api/create-client', async (req, res) => {
             data: {},
             prompt: promptText,
             clientInfo: clientInfo,
-            logoUrl: logoUrl,
-            logoFilename: finalLogoFilename, // Filename del logo asociado a este cliente específico
+            logoUrl: logoUrl, // URL del logo (puede ser de Shopify o de GitHub)
             createdAt: new Date(),
             url: `/client/${clientId}`
         });
@@ -825,25 +809,17 @@ app.get('/client/:clientId', async (req, res) => {
         const clientInfo = client.clientInfo || extractClientInfoFromPrompt(client.prompt);
         
         // Obtener logo específico de este cliente
-        let logoUrl = null;
-        if (client.logoFilename) {
-            // Construir URL de GitHub raw con el filename específico del cliente
-            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
-            const githubBranch = process.env.GITHUB_BRANCH || 'main';
-            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${client.logoFilename}`;
-            console.log(`🖼️ Usando logo específico del cliente: ${client.logoFilename}`);
-            console.log(`🔗 URL del logo (GitHub raw): ${logoUrl}`);
-        } else if (client.logoUrl) {
-            // Si hay logoUrl guardado, usarlo
-            logoUrl = client.logoUrl;
-            console.log(`🖼️ Usando logoUrl guardado: ${logoUrl}`);
-        } else {
+        let logoUrl = client.logoUrl || null;
+        
+        if (!logoUrl) {
             // Intentar extraer del prompt como fallback
             const logoUrlMatch = client.prompt.match(/Logo de la empresa:\s*(https?:\/\/[^\s\n]+)/i);
             if (logoUrlMatch) {
                 logoUrl = logoUrlMatch[1];
                 console.log(`🖼️ Logo extraído del prompt: ${logoUrl}`);
             }
+        } else {
+            console.log(`🖼️ Usando logoUrl guardado: ${logoUrl}`);
         }
         
         // Inyectar TODA la información del cliente dentro de la sección "Nuestro Proyecto"

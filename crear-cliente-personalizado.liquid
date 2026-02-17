@@ -10,6 +10,14 @@
     <form id="create-client-form" style="max-width: 800px; margin: 30px auto;">
       <div style="margin-bottom: 30px;">
         <label style="display: block; margin-bottom: 12px; font-weight: 600; font-size: 18px;">🖼️ Logo (opcional):</label>
+        {% if section.settings.logo %}
+          <div style="margin-bottom: 15px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+            <p style="margin: 0 0 10px 0; font-weight: 600; color: #333;">Logo desde Shopify:</p>
+            <img src="{{ section.settings.logo | img_url: 'master' }}" alt="Logo" style="max-width: 200px; max-height: 100px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">URL: {{ section.settings.logo | img_url: 'master' }}</p>
+            <div data-shopify-logo-url="{{ section.settings.logo | img_url: 'master' }}" style="display: none;"></div>
+          </div>
+        {% endif %}
         <div 
           id="logo-dropzone" 
           style="border: 2px dashed #ddd; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; background: #f9f9f9; transition: all 0.3s;"
@@ -36,7 +44,7 @@
           </div>
         </div>
         <small style="display: block; margin-top: 8px; color: #666;">
-          💡 El logo aparecerá arriba en la página personalizada
+          💡 El logo aparecerá arriba en la página personalizada. Si subes una imagen, se usará esa. Si no, se usará el logo configurado en Shopify.
         </small>
       </div>
       
@@ -222,30 +230,31 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
          return;
        }
        
-       // Subir logo primero si existe
-       let finalPrompt = prompt;
-       let logoFilename = null;
+       // Obtener logo: primero del archivo subido, luego de Shopify
+       let logoUrl = null;
        if (logoFile) {
          submitBtn.textContent = '⏳ Subiendo logo...';
          try {
            const logoResult = await uploadLogo();
-           if (logoResult && logoResult.filename) {
-             logoFilename = logoResult.filename;
-             console.log('✅ Logo subido y asociado:', logoFilename);
-             console.log('🔗 URL del logo:', logoResult.url);
-             // NO agregar la URL al prompt, el servidor la construirá desde el filename
+           if (logoResult && logoResult.url) {
+             logoUrl = logoResult.url;
+             console.log('✅ Logo subido:', logoUrl);
            }
          } catch (error) {
            console.error('Error al subir logo:', error);
            // Continuar sin logo si falla
          }
+       } else if (document.querySelector('[data-shopify-logo-url]')) {
+         // Usar logo de Shopify si está disponible
+         logoUrl = document.querySelector('[data-shopify-logo-url]').dataset.shopifyLogoUrl;
+         console.log('✅ Usando logo de Shopify:', logoUrl);
        }
        
        submitBtn.textContent = '⏳ Generando página... (puede tardar 1-3 min)';
        
        const formData = {
-         prompt: finalPrompt,
-         logoFilename: logoFilename // Enviar el filename para asociarlo específicamente a este cliente
+         prompt: prompt,
+         logoUrl: logoUrl // Enviar la URL directamente
        };
        
       try {
@@ -384,6 +393,12 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
       "id": "title",
       "label": "Título (privado)",
       "default": "Crear Página Personalizada con IA"
+    },
+    {
+      "type": "image_picker",
+      "id": "logo",
+      "label": "Logo por defecto",
+      "info": "Logo que se usará si no se sube uno específico en el formulario"
     },
     {
       "type": "text",
