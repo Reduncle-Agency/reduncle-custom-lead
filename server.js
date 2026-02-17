@@ -92,6 +92,18 @@ async function personalizeContent(clientData, templateHtml, customPrompt = null)
         if (customPrompt) {
             prompt = `${customPrompt}
 
+INSTRUCCIONES CRÍTICAS:
+- SOLO cambia los TEXTOS visibles al usuario (títulos, párrafos, listas)
+- NO modifiques NINGÚN código JavaScript, CSS, o estructura HTML
+- NO toques el código de Three.js, animaciones, o efectos visuales
+- El coche 3D debe seguir funcionando exactamente igual
+- Mantén TODOS los estilos, clases, IDs, y atributos intactos
+- Solo personaliza los contenidos de texto dentro de <h1>, <h2>, <h3>, <p>, <li>, etc.
+
+Devuelve SOLO el HTML completo sin explicaciones ni markdown.`;
+        } else {
+            prompt = `Personaliza SOLO los TEXTOS de este HTML para el cliente.
+
 Datos del cliente:
 Nombre: ${clientData.nombre || 'Cliente'}
 Empresa: ${clientData.empresa || ''}
@@ -101,20 +113,13 @@ Timeline: ${clientData.timeline || ''}
 Equipo: ${clientData.equipo || ''}
 Precio: ${clientData.precio || ''}
 
-Mantén la estructura HTML, CSS y JavaScript intactos. Solo personaliza los textos y datos según el prompt.
-Devuelve SOLO el HTML completo sin explicaciones.`;
-        } else {
-            prompt = `Personaliza este HTML para el cliente:
-Nombre: ${clientData.nombre || 'Cliente'}
-Empresa: ${clientData.empresa || ''}
-Objetivos: ${clientData.objetivos || ''}
-Alcance: ${clientData.alcance || ''}
-Timeline: ${clientData.timeline || ''}
-Equipo: ${clientData.equipo || ''}
-Precio: ${clientData.precio || ''}
+INSTRUCCIONES CRÍTICAS:
+- SOLO cambia los TEXTOS visibles (títulos, párrafos, listas)
+- NO modifiques JavaScript, CSS, o estructura HTML
+- NO toques Three.js, animaciones, o efectos
+- El coche 3D debe funcionar igual
+- Mantén TODOS los estilos y código intactos
 
-Mantén la estructura HTML, CSS y JavaScript intactos. Solo personaliza los textos y datos del cliente.
-Reemplaza los placeholders {{cliente.*}} con los datos reales del cliente.
 Devuelve SOLO el HTML completo sin explicaciones.`;
         }
 
@@ -123,15 +128,42 @@ Devuelve SOLO el HTML completo sin explicaciones.`;
             messages: [
                 {
                     role: "system",
-                    content: "Eres un experto en personalizar páginas web. Mantén toda la estructura HTML, CSS y JavaScript. Solo cambia los textos y datos según las instrucciones."
+                    content: `Eres un experto en personalizar SOLO TEXTOS en páginas web. 
+
+REGLAS CRÍTICAS (NO VIOLAR):
+1. MANTÉN TODO EL CÓDIGO INTACTO:
+   - NO modifiques NINGÚN JavaScript (Three.js, animaciones, efectos, funciones)
+   - NO modifiques NINGÚN CSS (estilos, animaciones, efectos visuales, clases)
+   - NO modifiques la estructura HTML (divs, clases, IDs, atributos)
+   - NO modifiques los scripts de Three.js, GLTFLoader, o cualquier código de animación
+   - NO modifiques los event listeners, funciones de scroll, o efectos visuales
+
+2. SOLO PUEDES CAMBIAR:
+   - Los TEXTOS dentro de las etiquetas <h1>, <h2>, <h3>, <p>, <li>, <div> con contenido de texto
+   - Los textos descriptivos de las secciones (Objetivos, Alcance, Timeline, Equipo, Precio, Contacto)
+   - Los títulos y descripciones de los pasos del circuito
+   - Mantén la estructura exacta de las listas y secciones
+
+3. EL COCHE 3D DEBE FUNCIONAR:
+   - NO toques NADA del código relacionado con Three.js
+   - NO modifiques el canvas, renderer, scene, camera, o car
+   - NO cambies los scripts de importación de Three.js
+   - El coche 3D debe seguir funcionando exactamente igual
+
+4. EFECTOS VISUALES:
+   - NO modifiques CSS de animaciones, transiciones, o efectos
+   - NO cambies colores, gradientes, o efectos visuales
+   - Solo cambia los textos, mantén todos los estilos
+
+IMPORTANTE: Si no estás 100% seguro de si algo es texto o código, NO LO TOQUES. Solo cambia textos claramente visibles al usuario.`
                 },
                 {
                     role: "user",
-                    content: prompt + "\n\nHTML original (primeros 8000 caracteres):\n" + templateHtml.substring(0, 8000)
+                    content: prompt + "\n\nHTML COMPLETO (mantén TODO el código intacto, solo cambia textos):\n" + templateHtml
                 }
             ],
-            temperature: 0.7,
-            max_tokens: 8000
+            temperature: 0.3, // Temperatura más baja para ser más conservador
+            max_tokens: 16000 // Más tokens para el HTML completo
         });
 
         let personalizedHtml = completion.choices[0].message.content;
