@@ -33,8 +33,9 @@ if (process.env.OPENAI_API_KEY) {
 const clients = new Map();
 
 // Función para personalizar el HTML con IA
-async function personalizeContent(clientData, templateHtml) {
+async function personalizeContent(clientData, templateHtml, customPrompt = null) {
     if (!openai) {
+        console.warn('OpenAI no configurado, usando personalización básica');
         // Si no hay API key, usar datos directamente sin IA
         return templateHtml
             .replace(/\{\{cliente\.nombre\}\}/g, clientData.nombre || 'Cliente')
@@ -47,8 +48,24 @@ async function personalizeContent(clientData, templateHtml) {
     }
 
     try {
-        // Usar IA para personalizar el contenido
-        const prompt = `Personaliza este HTML para el cliente:
+        // Si hay un prompt personalizado, usarlo; si no, usar el prompt por defecto
+        let prompt;
+        if (customPrompt) {
+            prompt = `${customPrompt}
+
+Datos del cliente:
+Nombre: ${clientData.nombre || 'Cliente'}
+Empresa: ${clientData.empresa || ''}
+Objetivos: ${clientData.objetivos || ''}
+Alcance: ${clientData.alcance || ''}
+Timeline: ${clientData.timeline || ''}
+Equipo: ${clientData.equipo || ''}
+Precio: ${clientData.precio || ''}
+
+Mantén la estructura HTML, CSS y JavaScript intactos. Solo personaliza los textos y datos según el prompt.
+Devuelve SOLO el HTML completo sin explicaciones.`;
+        } else {
+            prompt = `Personaliza este HTML para el cliente:
 Nombre: ${clientData.nombre || 'Cliente'}
 Empresa: ${clientData.empresa || ''}
 Objetivos: ${clientData.objetivos || ''}
@@ -60,24 +77,34 @@ Precio: ${clientData.precio || ''}
 Mantén la estructura HTML, CSS y JavaScript intactos. Solo personaliza los textos y datos del cliente.
 Reemplaza los placeholders {{cliente.*}} con los datos reales del cliente.
 Devuelve SOLO el HTML completo sin explicaciones.`;
+        }
 
         const completion = await openai.chat.completions.create({
             model: process.env.OPENAI_MODEL || "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
-                    content: "Eres un experto en personalizar páginas web. Mantén toda la estructura HTML, CSS y JavaScript. Solo cambia los textos y datos del cliente."
+                    content: "Eres un experto en personalizar páginas web. Mantén toda la estructura HTML, CSS y JavaScript. Solo cambia los textos y datos según las instrucciones."
                 },
                 {
                     role: "user",
-                    content: prompt + "\n\nHTML original:\n" + templateHtml.substring(0, 5000) // Limitar tamaño
+                    content: prompt + "\n\nHTML original (primeros 8000 caracteres):\n" + templateHtml.substring(0, 8000)
                 }
             ],
             temperature: 0.7,
-            max_tokens: 4000
+            max_tokens: 8000
         });
 
-        return completion.choices[0].message.content;
+        let personalizedHtml = completion.choices[0].message.content;
+        
+        // Limpiar el HTML si viene con markdown
+        if (personalizedHtml.includes('```html')) {
+            personalizedHtml = personalizedHtml.split('```html')[1].split('```')[0];
+        } else if (personalizedHtml.includes('```')) {
+            personalizedHtml = personalizedHtml.split('```')[1].split('```')[0];
+        }
+        
+        return personalizedHtml.trim();
     } catch (error) {
         console.error('Error al personalizar con IA:', error);
         // Fallback: usar reemplazo simple
@@ -123,11 +150,24 @@ app.post('/api/create-client', async (req, res) => {
             personalizedHtml
         );
         
+        const clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
+        
+        // Log en consola (visible en Render logs)
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('✅ CLIENTE CREADO EXITOSAMENTE');
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('📋 ID del Cliente:', clientId);
+        console.log('🔗 URL Personalizada:', clientUrl);
+        console.log('📝 Prompt (primeros 200 caracteres):', prompt.substring(0, 200) + '...');
+        console.log('⏰ Creado:', new Date().toISOString());
+        console.log('═══════════════════════════════════════════════════════');
+        
         res.json({
             success: true,
             clientId: clientId,
-            url: `${req.protocol}://${req.get('host')}/client/${clientId}`,
-            message: 'Cliente creado exitosamente'
+            url: clientUrl,
+            message: 'Cliente creado exitosamente',
+            createdAt: new Date().toISOString()
         });
     } catch (error) {
         console.error('Error al crear cliente:', error);
@@ -159,7 +199,7 @@ app.get('/client/:clientId', async (req, res) => {
         // Si no existe caché, generar de nuevo
         const templatePath = path.join(__dirname, 'index.html');
         const templateHtml = await fs.readFile(templatePath, 'utf-8');
-        const personalizedHtml = await personalizeContent(client.data, templateHtml);
+        const personalizedHtml = await personalizeContent(client.data, templateHtml, client.prompt);
         
         res.send(personalizedHtml);
     } catch (error) {

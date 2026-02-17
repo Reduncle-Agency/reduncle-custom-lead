@@ -1,0 +1,199 @@
+{% comment %}
+  Sección para crear página personalizada de cliente con IA
+  Envía datos y prompt al servidor de Render
+{% endcomment %}
+
+{% if customer and customer.tags contains 'dueño' %}
+  <section class="page-width" style="padding: 40px 20px;">
+    <h2>{{ section.settings.title }}</h2>
+    
+    <form id="create-client-form" style="max-width: 800px; margin: 30px auto;">
+      <div style="margin-bottom: 30px;">
+        <label style="display: block; margin-bottom: 12px; font-weight: 600; font-size: 18px;">Prompt completo:</label>
+        <textarea 
+          id="custom-prompt" 
+          name="prompt" 
+          rows="12" 
+          required
+          style="width: 100%; padding: 16px; border: 2px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 15px; line-height: 1.6; resize: vertical;"
+          placeholder="Escribe aquí todo el prompt con la información del cliente. Ejemplo:
+
+Personaliza esta página para:
+- Cliente: Juan Pérez
+- Empresa: Tech Solutions S.L.
+- Objetivos: Aumentar ventas online en un 50%, mejorar experiencia de usuario
+- Alcance: Desarrollo completo de e-commerce con integración de pagos y gestión de inventario
+- Timeline: 3 meses
+- Equipo: 5 desarrolladores senior especializados en React y Node.js
+- Precio: €15,000
+
+Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El tono debe ser profesional pero cercano."
+        ></textarea>
+        <small style="display: block; margin-top: 8px; color: #666;">
+          💡 Escribe toda la información del cliente y las instrucciones de personalización en un solo prompt
+        </small>
+      </div>
+      
+      <button 
+        type="submit" 
+        style="width: 100%; padding: 16px; background: #ff0000; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;"
+        id="submit-btn"
+      >
+        Crear Página Personalizada
+      </button>
+      
+      <div id="result" style="margin-top: 20px; padding: 15px; border-radius: 8px; display: none;"></div>
+    </form>
+  </section>
+  
+  <script>
+    document.getElementById('create-client-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submit-btn');
+      const resultDiv = document.getElementById('result');
+      
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Generando página...';
+      resultDiv.style.display = 'none';
+      
+       const prompt = document.getElementById('custom-prompt').value.trim();
+       
+       if (!prompt) {
+         alert('Por favor, escribe un prompt con la información del cliente');
+         return;
+       }
+       
+       const formData = {
+         prompt: prompt
+       };
+      
+      try {
+        const response = await fetch('{{ section.settings.render_api_url | default: "https://reduncle-custom-lead.onrender.com/api/create-client" }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+         if (data.success) {
+           resultDiv.style.display = 'block';
+           resultDiv.style.background = '#d4edda';
+           resultDiv.style.color = '#155724';
+           resultDiv.style.border = '1px solid #c3e6cb';
+           resultDiv.innerHTML = `
+             <strong>✅ ¡Página creada exitosamente!</strong><br><br>
+             <div style="margin: 15px 0;">
+               <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔗 URL Personalizada:</label>
+               <div style="display: flex; gap: 10px; align-items: center;">
+                 <input 
+                   type="text" 
+                   id="client-url" 
+                   value="${data.url}" 
+                   readonly
+                   style="flex: 1; padding: 12px; border: 2px solid #28a745; border-radius: 8px; background: white; font-size: 14px; font-family: monospace;"
+                 />
+                 <button 
+                   type="button" 
+                   onclick="copyUrl()" 
+                   style="padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap;"
+                 >
+                   📋 Copiar
+                 </button>
+               </div>
+               <small style="display: block; margin-top: 5px; color: #666;">Click en "Copiar" para copiar la URL al portapapeles</small>
+             </div>
+             <div style="margin-top: 15px;">
+               <a href="${data.url}" target="_blank" style="color: #155724; text-decoration: underline; font-weight: 600;">
+                 👁️ Ver página personalizada →
+               </a>
+             </div>
+           `;
+         } else {
+          throw new Error(data.error || 'Error desconocido');
+        }
+      } catch (error) {
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.style.border = '1px solid #f5c6cb';
+        resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Crear Página Personalizada';
+      }
+     });
+     
+     function copyUrl() {
+       const urlInput = document.getElementById('client-url');
+       if (urlInput) {
+         urlInput.select();
+         urlInput.setSelectionRange(0, 99999); // Para móviles
+         document.execCommand('copy');
+         
+         // Feedback visual
+         const copyBtn = event.target;
+         const originalText = copyBtn.textContent;
+         copyBtn.textContent = '✅ Copiado!';
+         copyBtn.style.background = '#155724';
+         
+         setTimeout(() => {
+           copyBtn.textContent = originalText;
+           copyBtn.style.background = '#28a745';
+         }, 2000);
+       }
+     }
+   </script>
+ {% else %}
+
+
+
+
+{% endif %}
+
+{% schema %}
+{
+  "name": "Crear Cliente Personalizado",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Título (privado)",
+      "default": "Crear Página Personalizada con IA"
+    },
+    {
+      "type": "text",
+      "id": "render_api_url",
+      "label": "URL API de Render",
+      "default": "https://reduncle-custom-lead.onrender.com/api/create-client",
+      "info": "URL del endpoint para crear clientes"
+    },
+    {
+      "type": "text",
+      "id": "lock_title",
+      "label": "Título (bloqueado)",
+      "default": "Acceso restringido"
+    },
+    {
+      "type": "richtext",
+      "id": "lock_text",
+      "label": "Texto (bloqueado)",
+      "default": "<p>Necesitas permisos de 'dueño' para acceder a esta sección.</p>"
+    },
+    {
+      "type": "text",
+      "id": "login_label",
+      "label": "Texto botón login",
+      "default": "Iniciar sesión"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Crear Cliente Personalizado"
+    }
+  ]
+}
+{% endschema %}
