@@ -122,7 +122,16 @@ Devuelve SOLO el HTML completo sin explicaciones.`;
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {
     try {
-        const clientData = req.body;
+        const { prompt } = req.body;
+        
+        if (!prompt || !prompt.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: 'El prompt es requerido'
+            });
+        }
+        
+        const promptText = prompt.trim();
         
         // Generar ID único para el cliente
         const clientId = uuidv4();
@@ -131,18 +140,19 @@ app.post('/api/create-client', async (req, res) => {
         const templatePath = path.join(__dirname, 'index.html');
         const templateHtml = await fs.readFile(templatePath, 'utf-8');
         
-        // Personalizar contenido con IA
-        const personalizedHtml = await personalizeContent(clientData, templateHtml);
+        // Personalizar contenido con IA usando solo el prompt
+        const personalizedHtml = await personalizeContent({}, templateHtml, promptText);
         
         // Guardar datos del cliente
         clients.set(clientId, {
             id: clientId,
-            data: clientData,
+            data: {},
+            prompt: promptText,
             createdAt: new Date(),
             url: `/client/${clientId}`
         });
         
-        // Guardar HTML personalizado (opcional, para caché)
+        // Guardar HTML personalizado
         const publicDir = path.join(__dirname, 'public', 'clients');
         await fs.ensureDir(publicDir);
         await fs.writeFile(
@@ -153,7 +163,6 @@ app.post('/api/create-client', async (req, res) => {
         const clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
         
         // Log en consola (visible en Render logs)
-        const promptText = prompt || 'No proporcionado';
         console.log('═══════════════════════════════════════════════════════');
         console.log('✅ CLIENTE CREADO EXITOSAMENTE');
         console.log('═══════════════════════════════════════════════════════');
@@ -235,10 +244,14 @@ app.get('/', (req, res) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+    // Cargar clientes existentes al iniciar
+    await loadClientsFromFile();
+    
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
     console.log(`📝 Endpoint para crear cliente: POST /api/create-client`);
     console.log(`🌐 Ver cliente: GET /client/:clientId`);
+    console.log(`📋 Listar clientes: GET /api/clients`);
     if (!openai) {
         console.log('⚠️  OPENAI_API_KEY no configurada. Se usará personalización básica.');
     }
