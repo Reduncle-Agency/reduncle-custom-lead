@@ -153,14 +153,18 @@ app.post('/api/create-client', async (req, res) => {
         const clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
         
         // Log en consola (visible en Render logs)
+        const promptText = prompt || 'No proporcionado';
         console.log('═══════════════════════════════════════════════════════');
         console.log('✅ CLIENTE CREADO EXITOSAMENTE');
         console.log('═══════════════════════════════════════════════════════');
         console.log('📋 ID del Cliente:', clientId);
         console.log('🔗 URL Personalizada:', clientUrl);
-        console.log('📝 Prompt (primeros 200 caracteres):', prompt.substring(0, 200) + '...');
+        console.log('📝 Prompt (primeros 200 caracteres):', promptText.substring(0, 200) + (promptText.length > 200 ? '...' : ''));
         console.log('⏰ Creado:', new Date().toISOString());
         console.log('═══════════════════════════════════════════════════════');
+        
+        // Guardar en archivo (persistencia básica)
+        await saveClientsToFile();
         
         res.json({
             success: true,
