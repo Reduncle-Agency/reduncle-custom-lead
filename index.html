@@ -109,81 +109,6 @@
                 }
             }
 
-            #client-info-container {
-                position: fixed;
-                top: 100px;
-                left: 0;
-                width: 100%;
-                z-index: 99;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                padding: 0 20px;
-                pointer-events: none;
-                transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            }
-
-            #client-info-box {
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px) saturate(180%);
-                -webkit-backdrop-filter: blur(20px) saturate(180%);
-                border-radius: 16px;
-                padding: 24px 40px;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
-                border: 1px solid rgba(0, 0, 0, 0.08);
-                text-align: center;
-                max-width: 800px;
-                width: 100%;
-            }
-
-            .client-info-item {
-                margin: 8px 0;
-                font-size: 18px;
-                font-weight: 600;
-                color: #1a1a1a;
-                transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            }
-
-            #client-name {
-                font-size: 28px;
-                font-weight: 700;
-                color: #ff0000;
-                margin-bottom: 12px;
-            }
-
-            #client-company {
-                font-size: 22px;
-                font-weight: 600;
-                color: #333;
-                margin-bottom: 8px;
-            }
-
-            #client-details {
-                font-size: 16px;
-                font-weight: 400;
-                color: #666;
-                line-height: 1.6;
-            }
-
-            @media (max-width: 768px) {
-                #client-info-container {
-                    top: 80px;
-                    padding: 0 15px;
-                }
-                #client-info-box {
-                    padding: 20px 24px;
-                }
-                #client-name {
-                    font-size: 24px;
-                }
-                #client-company {
-                    font-size: 20px;
-                }
-                #client-details {
-                    font-size: 14px;
-                }
-            }
-
             #content {
                 position: relative;
                 z-index: 10;
@@ -623,20 +548,22 @@
         <div id="logo-container">
             <img id="logo-img" src="" alt="Logo" style="display: none;">
         </div>
-        
-        <!-- Información del cliente arriba -->
-        <div id="client-info-container" style="display: none;">
-            <div id="client-info-box">
-                <div id="client-name" class="client-info-item"></div>
-                <div id="client-company" class="client-info-item"></div>
-                <div id="client-details" class="client-info-item"></div>
-            </div>
-        </div>
 
         <div id="content">
             <div class="section">
-                <h1>Nuestro Proyecto</h1>
-                <p>Bienvenido a nuestra propuesta de proyecto. Explora los detalles a continuación.</p>
+                <h1 id="project-title">Nuestro Proyecto</h1>
+                <div id="client-info-in-section">
+                    <div id="client-name-section" style="display: none; margin-bottom: 12px;">
+                        <p style="font-size: 24px; font-weight: 700; color: #ff0000; margin-bottom: 8px;" id="client-name-text"></p>
+                    </div>
+                    <div id="client-company-section" style="display: none; margin-bottom: 12px;">
+                        <p style="font-size: 20px; font-weight: 600; color: #333; margin-bottom: 8px;" id="client-company-text"></p>
+                    </div>
+                    <div id="client-details-section" style="display: none; margin-bottom: 20px;">
+                        <p style="font-size: 17px; color: #666; line-height: 1.6;" id="client-details-text"></p>
+                    </div>
+                </div>
+                <p id="project-description">Bienvenido a nuestra propuesta de proyecto. Explora los detalles a continuación.</p>
             </div>
 
             <div class="section">
@@ -1477,33 +1404,29 @@
                 const clientCompany = urlParams.get('clientCompany');
                 const clientDetails = urlParams.get('clientDetails');
                 
-                const container = document.getElementById('client-info-container');
-                const nameEl = document.getElementById('client-name');
-                const companyEl = document.getElementById('client-company');
-                const detailsEl = document.getElementById('client-details');
+                const nameSection = document.getElementById('client-name-section');
+                const nameText = document.getElementById('client-name-text');
+                const companySection = document.getElementById('client-company-section');
+                const companyText = document.getElementById('client-company-text');
+                const detailsSection = document.getElementById('client-details-section');
+                const detailsText = document.getElementById('client-details-text');
                 
-                if (!container || !nameEl || !companyEl || !detailsEl) return;
-                
-                let hasInfo = false;
-                
-                if (clientName) {
-                    nameEl.textContent = decodeURIComponent(clientName);
-                    hasInfo = true;
+                if (clientName && nameSection && nameText) {
+                    nameText.textContent = decodeURIComponent(clientName);
+                    nameSection.style.display = 'block';
+                    console.log('✅ Nombre del cliente cargado:', clientName);
                 }
                 
-                if (clientCompany) {
-                    companyEl.textContent = decodeURIComponent(clientCompany);
-                    hasInfo = true;
+                if (clientCompany && companySection && companyText) {
+                    companyText.textContent = decodeURIComponent(clientCompany);
+                    companySection.style.display = 'block';
+                    console.log('✅ Empresa del cliente cargada:', clientCompany);
                 }
                 
-                if (clientDetails) {
-                    detailsEl.textContent = decodeURIComponent(clientDetails);
-                    hasInfo = true;
-                }
-                
-                if (hasInfo) {
-                    container.style.display = 'flex';
-                    console.log('✅ Información del cliente cargada');
+                if (clientDetails && detailsSection && detailsText) {
+                    detailsText.textContent = decodeURIComponent(clientDetails);
+                    detailsSection.style.display = 'block';
+                    console.log('✅ Detalles del cliente cargados');
                 }
             }
             

@@ -4,9 +4,6 @@ const fs = require('fs-extra');
 const path = require('path');
 const OpenAI = require('openai');
 const multer = require('multer');
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 // Configurar multer para subida de imágenes (guardar en logos/ para GitHub)
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'logos');
+        const uploadDir = path.join(__dirname, 'public', 'logos');
         await fs.ensureDir(uploadDir);
         cb(null, uploadDir);
     },
@@ -25,45 +22,10 @@ const storage = multer.diskStorage({
 });
 
 // Función para hacer commit de imagen a GitHub
-async function commitLogoToGitHub(filename, clientId) {
-    try {
-        const logosDir = path.join(__dirname, 'logos');
-        const filePath = path.join(logosDir, filename);
-        
-        // Verificar que el archivo existe
-        if (!await fs.pathExists(filePath)) {
-            console.warn(`⚠️ Archivo no encontrado: ${filePath}`);
-            return null;
-        }
-        
-        // Git add
-        await execPromise(`git add logos/${filename}`, { cwd: __dirname });
-        console.log(`✅ Logo agregado a git: logos/${filename}`);
-        
-        // Git commit
-        await execPromise(`git commit -m "Agregar logo para cliente ${clientId}"`, { cwd: __dirname });
-        console.log(`✅ Logo commiteado a git`);
-        
-        // Git push (en background para no bloquear)
-        exec(`git push origin main`, { cwd: __dirname }, (error, stdout, stderr) => {
-            if (error) {
-                console.error('⚠️ Error al hacer push (se puede hacer manualmente):', error.message);
-            } else {
-                console.log(`✅ Logo pusheado a GitHub: logos/${filename}`);
-            }
-        });
-        
-        // URL de GitHub raw (se actualizará después del push)
-        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
-        const githubBranch = process.env.GITHUB_BRANCH || 'main';
-        const githubUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${filename}`;
-        
-        return githubUrl;
-    } catch (error) {
-        console.error('❌ Error al hacer commit a GitHub:', error);
-        // Fallback: usar URL local del servidor
-        return `${process.env.BASE_URL || 'https://reduncle-custom-lead.onrender.com'}/logos/${filename}`;
-    }
+// Función simplificada: solo retorna la URL del servidor (más simple y funciona inmediatamente)
+async function getLogoUrl(req, filename) {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return `${baseUrl}/logos/${filename}`;
 }
 
 const upload = multer({
@@ -617,27 +579,17 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
         }
         
         const filename = req.file.filename;
-        const clientId = req.body.clientId || 'temp'; // ID temporal si no se proporciona
+        console.log(`📤 Logo subido: ${filename}`);
         
-        console.log(`📤 Subiendo logo: ${filename} para cliente: ${clientId}`);
+        // Obtener URL del servidor
+        const logoUrl = await getLogoUrl(req, filename);
         
-        // Hacer commit a GitHub
-        const githubUrl = await commitLogoToGitHub(filename, clientId);
-        
-        // URL local como fallback
-        const localUrl = `${req.protocol}://${req.get('host')}/logos/${filename}`;
-        
-        // Usar URL de GitHub si está disponible, sino la local
-        const logoUrl = githubUrl || localUrl;
-        
-        console.log('✅ Logo subido y commiteado:', logoUrl);
+        console.log('✅ Logo subido correctamente:', logoUrl);
         
         res.json({
             success: true,
             url: logoUrl,
-            filename: filename,
-            githubUrl: githubUrl,
-            localUrl: localUrl
+            filename: filename
         });
     } catch (error) {
         console.error('❌ Error al subir logo:', error);
@@ -649,7 +601,7 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
 });
 
 // Endpoint para servir logos desde la carpeta logos/
-app.use('/logos', express.static(path.join(__dirname, 'logos')));
+app.use('/logos', express.static(path.join(__dirname, 'public', 'logos')));
 
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {
@@ -688,10 +640,9 @@ app.post('/api/create-client', async (req, res) => {
         let finalLogoFilename = logoFilename || null;
         
         if (finalLogoFilename) {
-            // Construir URL de GitHub raw con el filename
-            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
-            const githubBranch = process.env.GITHUB_BRANCH || 'main';
-            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${finalLogoFilename}`;
+            // Construir URL del servidor con el filename
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            logoUrl = `${baseUrl}/logos/${finalLogoFilename}`;
             console.log('🖼️ Logo asociado al cliente:', finalLogoFilename);
             console.log('🔗 URL del logo:', logoUrl);
         } else {
@@ -740,17 +691,17 @@ app.post('/api/create-client', async (req, res) => {
         let clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
         const urlParams = new URLSearchParams();
         
-        if (clientInfo.name) {
-            urlParams.append('clientName', clientInfo.name);
+        if (clientInfo.nombre) {
+            urlParams.append('clientName', encodeURIComponent(clientInfo.nombre));
         }
-        if (clientInfo.company) {
-            urlParams.append('clientCompany', clientInfo.company);
+        if (clientInfo.empresa) {
+            urlParams.append('clientCompany', encodeURIComponent(clientInfo.empresa));
         }
-        if (clientInfo.details) {
-            urlParams.append('clientDetails', clientInfo.details);
+        if (clientInfo.objetivos) {
+            urlParams.append('clientDetails', encodeURIComponent(clientInfo.objetivos));
         }
         if (logoUrl) {
-            urlParams.append('logo', logoUrl);
+            urlParams.append('logo', encodeURIComponent(logoUrl));
         }
         
         if (urlParams.toString()) {
@@ -815,11 +766,11 @@ app.get('/client/:clientId', async (req, res) => {
         // Obtener logo específico de este cliente
         let logoUrl = null;
         if (client.logoFilename) {
-            // Construir URL de GitHub raw con el filename específico del cliente
-            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
-            const githubBranch = process.env.GITHUB_BRANCH || 'main';
-            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${client.logoFilename}`;
+            // Construir URL del servidor con el filename específico del cliente
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            logoUrl = `${baseUrl}/logos/${client.logoFilename}`;
             console.log(`🖼️ Usando logo específico del cliente: ${client.logoFilename}`);
+            console.log(`🔗 URL del logo: ${logoUrl}`);
         } else if (client.logoUrl) {
             // Si hay logoUrl guardado, usarlo
             logoUrl = client.logoUrl;
@@ -833,31 +784,36 @@ app.get('/client/:clientId', async (req, res) => {
             }
         }
         
-        // Inyectar información del cliente
-        if (clientInfo.name) {
+        // Inyectar información del cliente dentro de la sección "Nuestro Proyecto"
+        if (clientInfo.nombre) {
             html = html.replace(
-                /<div id="client-name"[^>]*><\/div>/i,
-                `<div id="client-name">${clientInfo.name}</div>`
+                /<p[^>]*id="client-name-text"[^>]*><\/p>/i,
+                `<p style="font-size: 24px; font-weight: 700; color: #ff0000; margin-bottom: 8px;" id="client-name-text">${clientInfo.nombre}</p>`
+            );
+            html = html.replace(
+                /<div id="client-name-section" style="display: none;[^"]*">/i,
+                '<div id="client-name-section" style="display: block; margin-bottom: 12px;">'
             );
         }
-        if (clientInfo.company) {
+        if (clientInfo.empresa) {
             html = html.replace(
-                /<div id="client-company"[^>]*><\/div>/i,
-                `<div id="client-company">${clientInfo.company}</div>`
+                /<p[^>]*id="client-company-text"[^>]*><\/p>/i,
+                `<p style="font-size: 20px; font-weight: 600; color: #333; margin-bottom: 8px;" id="client-company-text">${clientInfo.empresa}</p>`
+            );
+            html = html.replace(
+                /<div id="client-company-section" style="display: none;[^"]*">/i,
+                '<div id="client-company-section" style="display: block; margin-bottom: 12px;">'
             );
         }
-        if (clientInfo.details) {
+        if (clientInfo.details || clientInfo.objetivos) {
+            const detailsText = clientInfo.details || clientInfo.objetivos || '';
             html = html.replace(
-                /<div id="client-details"[^>]*><\/div>/i,
-                `<div id="client-details">${clientInfo.details}</div>`
+                /<p[^>]*id="client-details-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #666; line-height: 1.6;" id="client-details-text">${detailsText}</p>`
             );
-        }
-        
-        // Mostrar contenedor si hay información
-        if (clientInfo.name || clientInfo.company || clientInfo.details) {
             html = html.replace(
-                /<div id="client-info-container" style="display: none;">/i,
-                '<div id="client-info-container">'
+                /<div id="client-details-section" style="display: none;[^"]*">/i,
+                '<div id="client-details-section" style="display: block; margin-bottom: 20px;">'
             );
         }
         
