@@ -4,6 +4,9 @@ const fs = require('fs-extra');
 const path = require('path');
 const OpenAI = require('openai');
 const multer = require('multer');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,7 +14,8 @@ const PORT = process.env.PORT || 3000;
 // Configurar multer para subida de imágenes (guardar en logos/ para GitHub)
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'public', 'logos');
+        // Guardar en logos/ (raíz del proyecto) para poder hacer commit a GitHub
+        const uploadDir = path.join(__dirname, 'logos');
         await fs.ensureDir(uploadDir);
         cb(null, uploadDir);
     },
@@ -22,11 +26,6 @@ const storage = multer.diskStorage({
 });
 
 // Función para hacer commit de imagen a GitHub
-// Función simplificada: solo retorna la URL del servidor (más simple y funciona inmediatamente)
-async function getLogoUrl(req, filename) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    return `${baseUrl}/logos/${filename}`;
-}
 
 const upload = multer({
     storage: storage,
@@ -313,8 +312,13 @@ async function getLatestLogo() {
 // Función para extraer información del cliente del prompt
 function extractClientInfoFromPrompt(prompt) {
     const info = {
-        name: null,
-        company: null,
+        nombre: null,
+        empresa: null,
+        objetivos: null,
+        alcance: null,
+        timeline: null,
+        equipo: null,
+        precio: null,
         details: null
     };
     
@@ -325,25 +329,44 @@ function extractClientInfoFromPrompt(prompt) {
                       prompt.match(/-?\s*Cliente:\s*([^\n\r,]+)/i) ||
                       prompt.match(/-?\s*Nombre:\s*([^\n\r,]+)/i);
     if (nameMatch) {
-        info.name = nameMatch[1].trim();
+        info.nombre = nameMatch[1].trim();
     }
     
     // Buscar empresa
     const companyMatch = prompt.match(/(?:empresa|company)[\s:]+([^\n\r,]+)/i) ||
                          prompt.match(/-?\s*Empresa:\s*([^\n\r,]+)/i);
     if (companyMatch) {
-        info.company = companyMatch[1].trim();
+        info.empresa = companyMatch[1].trim();
     }
     
-    // Buscar detalles adicionales (objetivos, alcance, etc.)
-    const detailsParts = [];
-    const objetivosMatch = prompt.match(/(?:objetivos|objetivo)[\s:]+([^\n\r]+)/i);
+    // Buscar objetivos
+    const objetivosMatch = prompt.match(/(?:objetivos|objetivo)[\s:]+([^\n\r]+?)(?:\n|$|Alcance|Timeline|Equipo|Precio)/i);
     if (objetivosMatch) {
-        detailsParts.push('Objetivos: ' + objetivosMatch[1].trim().substring(0, 100));
+        info.objetivos = objetivosMatch[1].trim();
     }
     
-    if (detailsParts.length > 0) {
-        info.details = detailsParts.join(' • ');
+    // Buscar alcance
+    const alcanceMatch = prompt.match(/(?:alcance|scope)[\s:]+([^\n\r]+?)(?:\n|$|Timeline|Equipo|Precio|Objetivos)/i);
+    if (alcanceMatch) {
+        info.alcance = alcanceMatch[1].trim();
+    }
+    
+    // Buscar timeline
+    const timelineMatch = prompt.match(/(?:timeline|tiempo|duraci[oó]n|plazo)[\s:]+([^\n\r]+?)(?:\n|$|Equipo|Precio|Objetivos|Alcance)/i);
+    if (timelineMatch) {
+        info.timeline = timelineMatch[1].trim();
+    }
+    
+    // Buscar equipo
+    const equipoMatch = prompt.match(/(?:equipo|team)[\s:]+([^\n\r]+?)(?:\n|$|Precio|Objetivos|Alcance|Timeline)/i);
+    if (equipoMatch) {
+        info.equipo = equipoMatch[1].trim();
+    }
+    
+    // Buscar precio
+    const precioMatch = prompt.match(/(?:precio|price|coste|costo)[\s:]+([^\n\r€$]+)/i);
+    if (precioMatch) {
+        info.precio = precioMatch[1].trim();
     }
     
     return info;
@@ -581,8 +604,33 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
         const filename = req.file.filename;
         console.log(`📤 Logo subido: ${filename}`);
         
-        // Obtener URL del servidor
-        const logoUrl = await getLogoUrl(req, filename);
+        // Hacer commit y push a GitHub
+        try {
+            // Git add
+            await execPromise(`git add logos/${filename}`, { cwd: __dirname });
+            console.log(`✅ Logo agregado a git: logos/${filename}`);
+            
+            // Git commit
+            await execPromise(`git commit -m "Agregar logo: ${filename}"`, { cwd: __dirname });
+            console.log(`✅ Logo commiteado a git`);
+            
+            // Git push (en background para no bloquear la respuesta)
+            exec(`git push origin main`, { cwd: __dirname }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('⚠️ Error al hacer push (se puede hacer manualmente):', error.message);
+                } else {
+                    console.log(`✅ Logo pusheado a GitHub: logos/${filename}`);
+                }
+            });
+        } catch (gitError) {
+            console.error('⚠️ Error en git (continuando de todas formas):', gitError.message);
+            // Continuar aunque falle git, el archivo ya está guardado
+        }
+        
+        // Construir URL de GitHub raw
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${filename}`;
         
         console.log('✅ Logo subido correctamente:', logoUrl);
         
@@ -601,7 +649,7 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
 });
 
 // Endpoint para servir logos desde la carpeta logos/
-app.use('/logos', express.static(path.join(__dirname, 'public', 'logos')));
+app.use('/logos', express.static(path.join(__dirname, 'logos')));
 
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {
@@ -640,11 +688,12 @@ app.post('/api/create-client', async (req, res) => {
         let finalLogoFilename = logoFilename || null;
         
         if (finalLogoFilename) {
-            // Construir URL del servidor con el filename
-            const baseUrl = `${req.protocol}://${req.get('host')}`;
-            logoUrl = `${baseUrl}/logos/${finalLogoFilename}`;
+            // Construir URL de GitHub raw con el filename
+            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+            const githubBranch = process.env.GITHUB_BRANCH || 'main';
+            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${finalLogoFilename}`;
             console.log('🖼️ Logo asociado al cliente:', finalLogoFilename);
-            console.log('🔗 URL del logo:', logoUrl);
+            console.log('🔗 URL del logo (GitHub raw):', logoUrl);
         } else {
             // Intentar extraer del prompt como fallback
             const logoUrlMatch = promptText.match(/Logo de la empresa:\s*(https?:\/\/[^\s\n]+)/i);
@@ -687,7 +736,7 @@ app.post('/api/create-client', async (req, res) => {
             personalizedHtml
         );
         
-        // Construir URL con parámetros de información del cliente y logo
+        // Construir URL con TODOS los parámetros de información del cliente y logo
         let clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
         const urlParams = new URLSearchParams();
         
@@ -698,7 +747,19 @@ app.post('/api/create-client', async (req, res) => {
             urlParams.append('clientCompany', encodeURIComponent(clientInfo.empresa));
         }
         if (clientInfo.objetivos) {
-            urlParams.append('clientDetails', encodeURIComponent(clientInfo.objetivos));
+            urlParams.append('clientObjetivos', encodeURIComponent(clientInfo.objetivos));
+        }
+        if (clientInfo.alcance) {
+            urlParams.append('clientAlcance', encodeURIComponent(clientInfo.alcance));
+        }
+        if (clientInfo.timeline) {
+            urlParams.append('clientTimeline', encodeURIComponent(clientInfo.timeline));
+        }
+        if (clientInfo.equipo) {
+            urlParams.append('clientEquipo', encodeURIComponent(clientInfo.equipo));
+        }
+        if (clientInfo.precio) {
+            urlParams.append('clientPrecio', encodeURIComponent(clientInfo.precio));
         }
         if (logoUrl) {
             urlParams.append('logo', encodeURIComponent(logoUrl));
@@ -766,11 +827,12 @@ app.get('/client/:clientId', async (req, res) => {
         // Obtener logo específico de este cliente
         let logoUrl = null;
         if (client.logoFilename) {
-            // Construir URL del servidor con el filename específico del cliente
-            const baseUrl = `${req.protocol}://${req.get('host')}`;
-            logoUrl = `${baseUrl}/logos/${client.logoFilename}`;
+            // Construir URL de GitHub raw con el filename específico del cliente
+            const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+            const githubBranch = process.env.GITHUB_BRANCH || 'main';
+            logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${client.logoFilename}`;
             console.log(`🖼️ Usando logo específico del cliente: ${client.logoFilename}`);
-            console.log(`🔗 URL del logo: ${logoUrl}`);
+            console.log(`🔗 URL del logo (GitHub raw): ${logoUrl}`);
         } else if (client.logoUrl) {
             // Si hay logoUrl guardado, usarlo
             logoUrl = client.logoUrl;
@@ -784,36 +846,75 @@ app.get('/client/:clientId', async (req, res) => {
             }
         }
         
-        // Inyectar información del cliente dentro de la sección "Nuestro Proyecto"
+        // Inyectar TODA la información del cliente dentro de la sección "Nuestro Proyecto"
         if (clientInfo.nombre) {
             html = html.replace(
                 /<p[^>]*id="client-name-text"[^>]*><\/p>/i,
-                `<p style="font-size: 24px; font-weight: 700; color: #ff0000; margin-bottom: 8px;" id="client-name-text">${clientInfo.nombre}</p>`
+                `<p style="font-size: 32px; font-weight: 800; color: #ff0000; margin-bottom: 8px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);" id="client-name-text">${clientInfo.nombre}</p>`
             );
             html = html.replace(
                 /<div id="client-name-section" style="display: none;[^"]*">/i,
-                '<div id="client-name-section" style="display: block; margin-bottom: 12px;">'
+                '<div id="client-name-section" style="display: block; margin-bottom: 16px;">'
             );
         }
         if (clientInfo.empresa) {
             html = html.replace(
                 /<p[^>]*id="client-company-text"[^>]*><\/p>/i,
-                `<p style="font-size: 20px; font-weight: 600; color: #333; margin-bottom: 8px;" id="client-company-text">${clientInfo.empresa}</p>`
+                `<p style="font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;" id="client-company-text">${clientInfo.empresa}</p>`
             );
             html = html.replace(
                 /<div id="client-company-section" style="display: none;[^"]*">/i,
-                '<div id="client-company-section" style="display: block; margin-bottom: 12px;">'
+                '<div id="client-company-section" style="display: block; margin-bottom: 16px;">'
             );
         }
-        if (clientInfo.details || clientInfo.objetivos) {
-            const detailsText = clientInfo.details || clientInfo.objetivos || '';
+        if (clientInfo.objetivos) {
             html = html.replace(
-                /<p[^>]*id="client-details-text"[^>]*><\/p>/i,
-                `<p style="font-size: 17px; color: #666; line-height: 1.6;" id="client-details-text">${detailsText}</p>`
+                /<p[^>]*id="client-objetivos-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-objetivos-text">${clientInfo.objetivos}</p>`
             );
             html = html.replace(
-                /<div id="client-details-section" style="display: none;[^"]*">/i,
-                '<div id="client-details-section" style="display: block; margin-bottom: 20px;">'
+                /<div id="client-objetivos-section" style="display: none;[^"]*">/i,
+                '<div id="client-objetivos-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.alcance) {
+            html = html.replace(
+                /<p[^>]*id="client-alcance-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-alcance-text">${clientInfo.alcance}</p>`
+            );
+            html = html.replace(
+                /<div id="client-alcance-section" style="display: none;[^"]*">/i,
+                '<div id="client-alcance-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.timeline) {
+            html = html.replace(
+                /<p[^>]*id="client-timeline-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-timeline-text">${clientInfo.timeline}</p>`
+            );
+            html = html.replace(
+                /<div id="client-timeline-section" style="display: none;[^"]*">/i,
+                '<div id="client-timeline-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.equipo) {
+            html = html.replace(
+                /<p[^>]*id="client-equipo-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-equipo-text">${clientInfo.equipo}</p>`
+            );
+            html = html.replace(
+                /<div id="client-equipo-section" style="display: none;[^"]*">/i,
+                '<div id="client-equipo-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.precio) {
+            html = html.replace(
+                /<p[^>]*id="client-precio-text"[^>]*><\/p>/i,
+                `<p style="font-size: 20px; font-weight: 700; color: #ff0000; line-height: 1.7; margin-left: 20px;" id="client-precio-text">${clientInfo.precio}</p>`
+            );
+            html = html.replace(
+                /<div id="client-precio-section" style="display: none;[^"]*">/i,
+                '<div id="client-precio-section" style="display: block; margin-bottom: 16px;">'
             );
         }
         

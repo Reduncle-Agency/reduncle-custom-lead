@@ -552,12 +552,32 @@
         <div id="content">
             <div class="section">
                 <h1 id="project-title">Nuestro Proyecto</h1>
-                <div id="client-info-in-section">
-                    <div id="client-name-section" style="display: none; margin-bottom: 12px;">
-                        <p style="font-size: 24px; font-weight: 700; color: #ff0000; margin-bottom: 8px;" id="client-name-text"></p>
+                <div id="client-info-in-section" style="margin: 30px 0; padding: 30px; background: rgba(255, 255, 255, 0.5); border-radius: 12px; border: 2px solid rgba(255, 0, 0, 0.2);">
+                    <div id="client-name-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 32px; font-weight: 800; color: #ff0000; margin-bottom: 8px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);" id="client-name-text"></p>
                     </div>
-                    <div id="client-company-section" style="display: none; margin-bottom: 12px;">
-                        <p style="font-size: 20px; font-weight: 600; color: #333; margin-bottom: 8px;" id="client-company-text"></p>
+                    <div id="client-company-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;" id="client-company-text"></p>
+                    </div>
+                    <div id="client-objetivos-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">🎯 Objetivos:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-objetivos-text"></p>
+                    </div>
+                    <div id="client-alcance-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">📋 Alcance:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-alcance-text"></p>
+                    </div>
+                    <div id="client-timeline-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">⏱️ Timeline:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-timeline-text"></p>
+                    </div>
+                    <div id="client-equipo-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">👥 Equipo:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-equipo-text"></p>
+                    </div>
+                    <div id="client-precio-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">💰 Precio:</p>
+                        <p style="font-size: 20px; font-weight: 700; color: #ff0000; line-height: 1.7; margin-left: 20px;" id="client-precio-text"></p>
                     </div>
                     <div id="client-details-section" style="display: none; margin-bottom: 20px;">
                         <p style="font-size: 17px; color: #666; line-height: 1.6;" id="client-details-text"></p>
@@ -1397,37 +1417,99 @@
                 }
             }
             
-            // Cargar información del cliente desde parámetros de URL
+            // Cargar TODA la información del cliente desde parámetros de URL
             function loadClientInfo() {
                 const urlParams = new URLSearchParams(window.location.search);
+                
+                // Nombre
                 const clientName = urlParams.get('clientName');
+                if (clientName) {
+                    const nameSection = document.getElementById('client-name-section');
+                    const nameText = document.getElementById('client-name-text');
+                    if (nameSection && nameText) {
+                        nameText.textContent = decodeURIComponent(clientName);
+                        nameSection.style.display = 'block';
+                    }
+                }
+                
+                // Empresa
                 const clientCompany = urlParams.get('clientCompany');
+                if (clientCompany) {
+                    const companySection = document.getElementById('client-company-section');
+                    const companyText = document.getElementById('client-company-text');
+                    if (companySection && companyText) {
+                        companyText.textContent = decodeURIComponent(clientCompany);
+                        companySection.style.display = 'block';
+                    }
+                }
+                
+                // Objetivos
+                const clientObjetivos = urlParams.get('clientObjetivos');
+                if (clientObjetivos) {
+                    const objetivosSection = document.getElementById('client-objetivos-section');
+                    const objetivosText = document.getElementById('client-objetivos-text');
+                    if (objetivosSection && objetivosText) {
+                        objetivosText.textContent = decodeURIComponent(clientObjetivos);
+                        objetivosSection.style.display = 'block';
+                    }
+                }
+                
+                // Alcance
+                const clientAlcance = urlParams.get('clientAlcance');
+                if (clientAlcance) {
+                    const alcanceSection = document.getElementById('client-alcance-section');
+                    const alcanceText = document.getElementById('client-alcance-text');
+                    if (alcanceSection && alcanceText) {
+                        alcanceText.textContent = decodeURIComponent(clientAlcance);
+                        alcanceSection.style.display = 'block';
+                    }
+                }
+                
+                // Timeline
+                const clientTimeline = urlParams.get('clientTimeline');
+                if (clientTimeline) {
+                    const timelineSection = document.getElementById('client-timeline-section');
+                    const timelineText = document.getElementById('client-timeline-text');
+                    if (timelineSection && timelineText) {
+                        timelineText.textContent = decodeURIComponent(clientTimeline);
+                        timelineSection.style.display = 'block';
+                    }
+                }
+                
+                // Equipo
+                const clientEquipo = urlParams.get('clientEquipo');
+                if (clientEquipo) {
+                    const equipoSection = document.getElementById('client-equipo-section');
+                    const equipoText = document.getElementById('client-equipo-text');
+                    if (equipoSection && equipoText) {
+                        equipoText.textContent = decodeURIComponent(clientEquipo);
+                        equipoSection.style.display = 'block';
+                    }
+                }
+                
+                // Precio
+                const clientPrecio = urlParams.get('clientPrecio');
+                if (clientPrecio) {
+                    const precioSection = document.getElementById('client-precio-section');
+                    const precioText = document.getElementById('client-precio-text');
+                    if (precioSection && precioText) {
+                        precioText.textContent = decodeURIComponent(clientPrecio);
+                        precioSection.style.display = 'block';
+                    }
+                }
+                
+                // Detalles adicionales
                 const clientDetails = urlParams.get('clientDetails');
-                
-                const nameSection = document.getElementById('client-name-section');
-                const nameText = document.getElementById('client-name-text');
-                const companySection = document.getElementById('client-company-section');
-                const companyText = document.getElementById('client-company-text');
-                const detailsSection = document.getElementById('client-details-section');
-                const detailsText = document.getElementById('client-details-text');
-                
-                if (clientName && nameSection && nameText) {
-                    nameText.textContent = decodeURIComponent(clientName);
-                    nameSection.style.display = 'block';
-                    console.log('✅ Nombre del cliente cargado:', clientName);
+                if (clientDetails) {
+                    const detailsSection = document.getElementById('client-details-section');
+                    const detailsText = document.getElementById('client-details-text');
+                    if (detailsSection && detailsText) {
+                        detailsText.textContent = decodeURIComponent(clientDetails);
+                        detailsSection.style.display = 'block';
+                    }
                 }
                 
-                if (clientCompany && companySection && companyText) {
-                    companyText.textContent = decodeURIComponent(clientCompany);
-                    companySection.style.display = 'block';
-                    console.log('✅ Empresa del cliente cargada:', clientCompany);
-                }
-                
-                if (clientDetails && detailsSection && detailsText) {
-                    detailsText.textContent = decodeURIComponent(clientDetails);
-                    detailsSection.style.display = 'block';
-                    console.log('✅ Detalles del cliente cargados');
-                }
+                console.log('✅ Información del cliente cargada');
             }
             
             // Cargar logo al iniciar
