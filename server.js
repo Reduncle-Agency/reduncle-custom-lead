@@ -77,36 +77,91 @@ async function loadClientsFromFile() {
     }
 }
 
-// Función para extraer solo las secciones de texto que necesitan personalización
-function extractTextSections(html) {
-    // Extraer secciones completas (incluyendo el div.section) para mantener estilos
-    const section1 = html.match(/<div class="section">\s*<h1[^>]*>([\s\S]*?)<\/h1>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
-    const sectionObjetivos = html.match(/<div class="section">\s*<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
-    const sectionAlcance = html.match(/<div class="section">\s*<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
-    const sectionTimeline = html.match(/<div class="section">\s*<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
-    const sectionEquipo = html.match(/<div class="section">\s*<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
-    const sectionPrecio = html.match(/<div class="section">\s*<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>)/i);
-    const sectionContacto = html.match(/<div class="section"[^>]*>\s*<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)<\/div>\s*(?=<div class="section">|<\/div>|$)/i);
+// Función para extraer SOLO los textos que necesitan personalización (sin HTML)
+function extractTextsOnly(html) {
+    const texts = [];
     
-    // Extraer solo el contenido interno (sin el div.section) para enviar a ChatGPT
-    const sections = {
-        h1: section1 ? (section1[1] + (section1[2] || '')) : '',
-        objetivos: sectionObjetivos ? sectionObjetivos[1] : '',
-        alcance: sectionAlcance ? sectionAlcance[1] : '',
-        timeline: sectionTimeline ? sectionTimeline[1] : '',
-        equipo: sectionEquipo ? sectionEquipo[1] : '',
-        precio: sectionPrecio ? sectionPrecio[1] : '',
-        contacto: sectionContacto ? sectionContacto[1] : ''
-    };
-    
-    // NO remover estilos ni clases - mantener todo intacto
-    Object.keys(sections).forEach(key => {
-        if (sections[key]) {
-            sections[key] = sections[key].trim();
+    // Función helper para extraer texto
+    function extractText(pattern, tagName) {
+        const regex = new RegExp(pattern, 'gi');
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            if (match[1]) {
+                const text = match[1].trim();
+                // Solo agregar si tiene contenido y no es código
+                if (text.length > 0 && !text.startsWith('<') && !text.includes('function') && !text.includes('const ')) {
+                    texts.push({
+                        original: text,
+                        tag: tagName,
+                        fullMatch: match[0],
+                        index: match.index
+                    });
+                }
+            }
         }
+    }
+    
+    // Extraer textos de diferentes etiquetas (usando [\s\S]*? para contenido multilínea)
+    extractText('<h1[^>]*>([\\s\\S]*?)</h1>', 'h1');
+    extractText('<h2[^>]*>([\\s\\S]*?)</h2>', 'h2');
+    extractText('<h3[^>]*>([\\s\\S]*?)</h3>', 'h3');
+    extractText('<p[^>]*>([\\s\\S]*?)</p>', 'p');
+    extractText('<li[^>]*>([\\s\\S]*?)</li>', 'li');
+    extractText('<div class="circuit-step-title">([\\s\\S]*?)</div>', 'circuit-step-title');
+    extractText('<div class="circuit-step-description">([\\s\\S]*?)</div>', 'circuit-step-description');
+    
+    // Ordenar por posición en el HTML
+    texts.sort((a, b) => a.index - b.index);
+    
+    return { texts };
+}
+
+// Función para reemplazar textos en el HTML original
+function replaceTextsInHtml(html, personalizedTexts) {
+    let result = html;
+    
+    // Reemplazar en orden inverso para no afectar los índices
+    personalizedTexts.reverse().forEach(item => {
+        // Escapar caracteres especiales del texto original
+        const escapedOriginal = item.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Construir el patrón según el tag
+        let openTag, closeTag;
+        if (item.tag === 'h1') {
+            openTag = '<h1[^>]*>';
+            closeTag = '</h1>';
+        } else if (item.tag === 'h2') {
+            openTag = '<h2[^>]*>';
+            closeTag = '</h2>';
+        } else if (item.tag === 'h3') {
+            openTag = '<h3[^>]*>';
+            closeTag = '</h3>';
+        } else if (item.tag === 'p') {
+            openTag = '<p[^>]*>';
+            closeTag = '</p>';
+        } else if (item.tag === 'li') {
+            openTag = '<li[^>]*>';
+            closeTag = '</li>';
+        } else if (item.tag === 'circuit-step-title') {
+            openTag = '<div class="circuit-step-title">';
+            closeTag = '</div>';
+        } else if (item.tag === 'circuit-step-description') {
+            openTag = '<div class="circuit-step-description">';
+            closeTag = '</div>';
+        } else {
+            return; // Skip si no reconocemos el tag
+        }
+        
+        // Crear regex que busca el texto entre las etiquetas
+        const regex = new RegExp(`(${openTag})${escapedOriginal}(${closeTag})`, 'gi');
+        
+        // Reemplazar solo la primera ocurrencia
+        result = result.replace(regex, (match, p1, p2) => {
+            return `${p1}${item.personalized}${p2}`;
+        });
     });
     
-    return sections;
+    return result;
 }
 
 // Función para reemplazar secciones en el HTML original
@@ -193,28 +248,34 @@ async function personalizeContent(clientData, templateHtml, customPrompt = null)
     }
 
     try {
-        console.log(`📝 Enviando HTML COMPLETO a OpenAI (${templateHtml.length} caracteres)`);
+        console.log('📝 Extrayendo SOLO textos del HTML...');
+        const { texts, placeholders } = extractTextsOnly(templateHtml);
+        
+        if (texts.length === 0) {
+            console.warn('⚠️ No se encontraron textos para personalizar');
+            return templateHtml;
+        }
+        
+        console.log(`✅ Extraídos ${texts.length} textos (${texts.reduce((sum, t) => sum + t.original.length, 0)} caracteres totales)`);
+        
+        // Crear lista de textos para enviar a ChatGPT
+        const textsList = texts.map((t, i) => `${i + 1}. [${t.tag}] ${t.original}`).join('\n');
         
         // Si hay un prompt personalizado, usarlo; si no, usar el prompt por defecto
         let prompt;
         if (customPrompt) {
             prompt = `${customPrompt}
 
-INSTRUCCIONES CRÍTICAS:
-- Personaliza TODOS los textos de TODA la página según el prompt anterior
-- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <h3>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.)
-- Mantén TODA la estructura HTML intacta (incluyendo <div class="section">, <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
-- Mantén TODOS los atributos (class, id, data-step, style, etc.)
-- Mantén TODO el código JavaScript, CSS, y Three.js INTACTO
-- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞) a menos que el prompt lo indique
-- NO cambies la estructura de circuitos, solo personaliza los textos dentro de circuit-step-title y circuit-step-description
-- Personaliza TODOS los textos de TODAS las secciones según el prompt
-- Devuelve SOLO el HTML COMPLETO sin explicaciones ni markdown
+INSTRUCCIONES:
+- Personaliza SOLO los textos siguientes según el prompt anterior
+- Mantén el formato: número. [tipo] texto_personalizado
+- NO cambies los números ni los tipos entre corchetes
+- Devuelve SOLO la lista de textos personalizados, uno por línea, sin explicaciones
 
-HTML COMPLETO a personalizar:
-${templateHtml}`;
+TEXTOS A PERSONALIZAR:
+${textsList}`;
         } else {
-            prompt = `Personaliza TODOS los textos de esta página para el cliente:
+            prompt = `Personaliza estos textos para el cliente:
 
 Datos del cliente:
 Nombre: ${clientData.nombre || 'Cliente'}
@@ -225,22 +286,17 @@ Timeline: ${clientData.timeline || ''}
 Equipo: ${clientData.equipo || ''}
 Precio: ${clientData.precio || ''}
 
-INSTRUCCIONES CRÍTICAS:
-- Personaliza TODOS los textos de TODAS las secciones según los datos del cliente
-- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <h3>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.)
-- Mantén TODA la estructura HTML intacta (incluyendo <div class="section">, <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
-- Mantén TODOS los atributos (class, id, data-step, style, etc.)
-- Mantén TODO el código JavaScript, CSS, y Three.js INTACTO
-- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞) a menos que sea necesario
-- NO cambies la estructura de circuitos, solo personaliza los textos dentro de circuit-step-title y circuit-step-description
-- Personaliza TODOS los textos de TODAS las secciones
-- Devuelve SOLO el HTML COMPLETO sin explicaciones ni markdown
+INSTRUCCIONES:
+- Personaliza SOLO los textos siguientes según los datos del cliente
+- Mantén el formato: número. [tipo] texto_personalizado
+- NO cambies los números ni los tipos entre corchetes
+- Devuelve SOLO la lista de textos personalizados, uno por línea, sin explicaciones
 
-HTML COMPLETO a personalizar:
-${templateHtml}`;
+TEXTOS A PERSONALIZAR:
+${textsList}`;
         }
 
-        console.log('🤖 Enviando HTML COMPLETO a OpenAI...');
+        console.log(`🤖 Enviando ${texts.length} textos a OpenAI (${textsList.length} caracteres)...`);
         const startTime = Date.now();
         
         const completion = await openai.chat.completions.create({
@@ -248,34 +304,7 @@ ${templateHtml}`;
             messages: [
                 {
                     role: "system",
-                    content: `Eres un experto en personalizar SOLO TEXTOS de páginas web manteniendo TODA la estructura HTML, CSS y JavaScript intacta.
-
-REGLAS CRÍTICAS (NO VIOLAR):
-1. MANTÉN TODO EL CÓDIGO INTACTO:
-   - NO modifiques NINGÚN JavaScript (Three.js, animaciones, efectos, funciones)
-   - NO modifiques NINGÚN CSS (estilos, animaciones, efectos visuales, clases)
-   - NO modifiques la estructura HTML (divs, clases, IDs, atributos)
-   - NO modifiques los scripts de Three.js, GLTFLoader, o cualquier código de animación
-   - NO modifiques los event listeners, funciones de scroll, o efectos visuales
-
-2. SOLO PUEDES CAMBIAR:
-   - Los TEXTOS dentro de las etiquetas <h1>, <h2>, <h3>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.
-   - Los textos descriptivos de TODAS las secciones (Objetivos, Alcance, Timeline, Equipo, Precio, Contacto)
-   - Los títulos y descripciones de los pasos del circuito
-   - Personaliza TODOS los textos según el prompt proporcionado
-
-3. EL COCHE 3D DEBE FUNCIONAR:
-   - NO toques NADA del código relacionado con Three.js
-   - NO modifiques el canvas, renderer, scene, camera, o car
-   - NO cambies los scripts de importación de Three.js
-   - El coche 3D debe seguir funcionando exactamente igual
-
-4. EFECTOS VISUALES:
-   - NO modifiques CSS de animaciones, transiciones, o efectos
-   - NO cambies colores, gradientes, o efectos visuales (a menos que el prompt lo indique específicamente)
-   - Solo cambia los textos, mantén todos los estilos
-
-IMPORTANTE: Personaliza TODOS los textos de TODA la página según el prompt. Si no estás 100% seguro de si algo es texto o código, NO LO TOQUES. Solo cambia textos claramente visibles al usuario.`
+                    content: `Eres un experto en personalizar textos. Devuelve SOLO los textos personalizados en el mismo formato que recibes (número. [tipo] texto), uno por línea, sin explicaciones.`
                 },
                 {
                     role: "user",
@@ -283,27 +312,44 @@ IMPORTANTE: Personaliza TODOS los textos de TODA la página según el prompt. Si
                 }
             ],
             temperature: 0.3,
-            max_tokens: 16000 // Tokens suficientes para el HTML completo
+            max_tokens: 2000 // Mucho menos porque solo enviamos textos
         });
         
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`⏱️ OpenAI respondió en ${elapsedTime} segundos`);
 
-        let personalizedHtml = completion.choices[0].message.content;
+        let personalizedTextsResponse = completion.choices[0].message.content.trim();
         
-        // Limpiar el HTML si viene con markdown
-        if (personalizedHtml.includes('```html')) {
-            personalizedHtml = personalizedHtml.split('```html')[1].split('```')[0];
-        } else if (personalizedHtml.includes('```')) {
-            personalizedHtml = personalizedHtml.split('```')[1].split('```')[0];
-        }
+        // Parsear la respuesta de ChatGPT
+        const personalizedTexts = [];
+        const lines = personalizedTextsResponse.split('\n');
         
-        personalizedHtml = personalizedHtml.trim();
+        lines.forEach((line, index) => {
+            const match = line.match(/^\d+\.\s*\[([^\]]+)\]\s*(.+)$/);
+            if (match && texts[index]) {
+                personalizedTexts.push({
+                    ...texts[index],
+                    personalized: match[2].trim()
+                });
+            } else if (texts[index]) {
+                // Si no coincide el formato, usar el texto original
+                console.warn(`⚠️ No se pudo parsear línea ${index + 1}: ${line}`);
+                personalizedTexts.push({
+                    ...texts[index],
+                    personalized: texts[index].original
+                });
+            }
+        });
+        
+        console.log(`🔄 Reemplazando ${personalizedTexts.length} textos en HTML original...`);
+        
+        // Reemplazar textos en el HTML original
+        const finalHtml = replaceTextsInHtml(templateHtml, personalizedTexts);
         
         console.log('✅ HTML personalizado generado exitosamente');
-        console.log(`📊 Tamaño del HTML personalizado: ${personalizedHtml.length} caracteres`);
+        console.log(`📊 Tamaño del HTML final: ${finalHtml.length} caracteres`);
         
-        return personalizedHtml;
+        return finalHtml;
     } catch (error) {
         console.error('Error al personalizar con IA:', error);
         // Fallback: usar reemplazo simple
