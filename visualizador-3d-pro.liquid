@@ -5,16 +5,40 @@
 
 {% if section.settings.modo == 'iframe' %}
   {% comment %} Opción 1: Mostrar en iframe {% endcomment %}
-  <div style="width: 100%; height: 100vh; border: none; overflow: hidden; position: relative;">
+  <style>
+    .render-iframe-container {
+      width: 100%;
+      height: 100vh;
+      border: none;
+      overflow: hidden;
+      position: relative;
+    }
+    .render-iframe-container iframe {
+      width: 100%;
+      height: 100vh;
+      border: none;
+      display: block;
+      overflow: hidden;
+    }
+    /* Ocultar scrollbar del iframe */
+    .render-iframe-container::-webkit-scrollbar {
+      display: none;
+    }
+    .render-iframe-container {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+  <div class="render-iframe-container">
     <iframe 
       src="{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}"
-      style="width: 100%; height: 100vh; border: none; display: block;"
       frameborder="0"
       allowfullscreen
       allow="fullscreen"
       sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
       loading="lazy"
       id="render-iframe"
+      scrolling="no"
     ></iframe>
   </div>
   

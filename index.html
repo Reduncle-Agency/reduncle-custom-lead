@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visualizador 3D</title>
 </head>
-<body style="margin: 0; padding: 0; overflow: hidden;">
+<body style="margin: 0; padding: 0; overflow: hidden; -ms-overflow-style: none; scrollbar-width: none;">
     <div id="main-container" style="width: 100vw; height: 100vh; position: relative; overflow-x: hidden; overflow-y: auto; background: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1a1a1a; margin: 0; padding: 0; box-sizing: border-box;" onscroll="onPageScroll()">
         <style>
             * {
@@ -394,27 +394,82 @@
 
             @media (max-width: 768px) {
                 #content {
-                    padding: 40px 24px;
+                    padding: 60px 20px;
                 }
 
                 h1 {
                     font-size: 42px;
+                    margin-bottom: 24px;
                 }
 
                 h2 {
                     font-size: 32px;
+                    margin-bottom: 24px;
                 }
                 
                 h3 {
                     font-size: 24px;
+                    margin-bottom: 20px;
                 }
-
+                
                 .section {
-                    padding: 40px 32px;
+                    padding: 40px 24px;
+                    margin-bottom: 60px;
                 }
                 
                 p, li {
                     font-size: 17px;
+                    line-height: 1.7;
+                    margin-bottom: 16px;
+                }
+                
+                /* Ajustes específicos para el circuito en móvil */
+                .circuit-track {
+                    margin: 40px 0;
+                    padding-left: 50px;
+                }
+                
+                .circuit-step {
+                    padding: 32px 0 32px 40px;
+                    min-height: 100px;
+                }
+                
+                .circuit-step-title {
+                    font-size: 20px;
+                    margin-bottom: 12px;
+                    line-height: 1.3;
+                }
+                
+                .circuit-step-description {
+                    font-size: 16px;
+                    line-height: 1.6;
+                    padding-right: 10px;
+                }
+                
+                .circuit-node {
+                    width: 32px;
+                    height: 32px;
+                    left: 4px;
+                }
+                
+                .circuit-line {
+                    left: 18px;
+                    width: 4px;
+                }
+                
+                .circuit-line-fill {
+                    left: 18px;
+                    width: 4px;
+                }
+                
+                /* Más espacio entre elementos de lista */
+                ul {
+                    padding-left: 0;
+                }
+                
+                li {
+                    margin-bottom: 16px;
+                    padding-left: 32px;
                 }
             }
         </style>
@@ -568,7 +623,9 @@
 
             // Variables globales
             let scene, camera, renderer, car, carGroup;
-            let angle = Math.PI * 2.3; // Ángulo inicial: más atrás al cargar (252 grados)
+            // Ángulo inicial: un poco más atrás en móvil para mejor visibilidad
+            const isMobile = window.innerWidth <= 768;
+            let angle = isMobile ? Math.PI * 2.45 : Math.PI * 2.3; // Móvil: 441° (un poco más atrás), Desktop: 414°
             let rotationSpeed = 0; // Velocidad de rotación (controlada por scroll)
             let radius = 6; // Radio del círculo (más grande)
             const friction = 0.95; // Fricción (0.95 = frena gradualmente, más bajo = frena más rápido)
