@@ -1,0 +1,29 @@
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Node modules (si decides usar npm en el futuro)
+node_modules/
+
+# Archivos de build
+dist/
+build/
+
+# Archivos GLB grandes (se usa URL del CDN)
+*.glb

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proyecto - Visualizador 3D</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            background: #0a0a0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #canvas-container canvas {
+            pointer-events: auto;
+        }
+
+        #content {
+            position: relative;
+            z-index: 10;
+            min-height: 100vh;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        h2 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        h3 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+
+        p, li {
+            font-size: 18px;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            color: #e0e0e0;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            padding-left: 30px;
+            position: relative;
+        }
+
+        li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .highlight {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .price-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .price-box h3 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px 40px;
+            border-radius: 10px;
+        }
+
+        #instructions {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: right;
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 768px) {
+            #content {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 32px;
+            }
+
+            h2 {
+                font-size: 24px;
+            }
+
+            .section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Cargando modelo 3D...</div>
+    <div id="canvas-container"></div>
+    <div id="instructions">Haz scroll para controlar la velocidad</div>
+
+    <div id="content">
+        <div class="section">
+            <h1>Nuestro Proyecto</h1>
+            <p>Bienvenido a nuestra propuesta de proyecto. Explora los detalles a continuación.</p>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Objetivos</h2>
+            <ul>
+                <li>Desarrollar una solución innovadora que cumpla con los más altos estándares de calidad</li>
+                <li>Entregar resultados que superen las expectativas del cliente</li>
+                <li>Establecer una base sólida para futuras colaboraciones</li>
+                <li>Implementar las mejores prácticas de la industria</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📋 Alcance del Proyecto</h2>
+            <p>El alcance incluye:</p>
+            <ul>
+                <li><span class="highlight">Fase 1:</span> Análisis y planificación detallada</li>
+                <li><span class="highlight">Fase 2:</span> Desarrollo e implementación</li>
+                <li><span class="highlight">Fase 3:</span> Pruebas y optimización</li>
+                <li><span class="highlight">Fase 4:</span> Entrega y documentación</li>
+            </ul>
+            <p>Incluye soporte post-entrega durante el primer mes.</p>
+        </div>
+
+        <div class="section">
+            <h2>📅 Timeline y Planificación</h2>
+            <h3>Planificación a 3 meses</h3>
+            <ul>
+                <li><span class="highlight">Mes 1:</span> Análisis, diseño y planificación detallada</li>
+                <li><span class="highlight">Mes 2:</span> Desarrollo principal y primeras iteraciones</li>
+                <li><span class="highlight">Mes 3:</span> Refinamiento, pruebas finales y entrega</li>
+            </ul>
+            <p>Cada fase incluye entregables específicos y revisiones periódicas para asegurar que el proyecto avance según lo planificado.</p>
+        </div>
+
+        <div class="section">
+            <h2>👥 Con Quien Trabajamos</h2>
+            <h3>Autoridad y Experiencia</h3>
+            <p>Nuestro equipo está compuesto por profesionales altamente cualificados con años de experiencia en la industria:</p>
+            <ul>
+                <li>Especialistas en desarrollo con certificaciones reconocidas</li>
+                <li>Equipo de diseño con portfolio de proyectos exitosos</li>
+                <li>Consultores estratégicos con experiencia en múltiples sectores</li>
+                <li>Soporte técnico disponible durante todo el proyecto</li>
+            </ul>
+            <p>Trabajamos con metodologías ágiles y mantenemos comunicación constante con nuestros clientes.</p>
+        </div>
+
+        <div class="section">
+            <h2>💰 Inversión</h2>
+            <div class="price-box">
+                <h3>Precio del Proyecto</h3>
+                <p style="font-size: 24px; margin-top: 10px;">Personalizado según necesidades</p>
+                <p style="margin-top: 20px; font-size: 16px;">Contacta con nosotros para una cotización detallada</p>
+            </div>
+            <p style="margin-top: 20px;">La inversión incluye:</p>
+            <ul>
+                <li>Todo el desarrollo y entrega del proyecto</li>
+                <li>Soporte técnico durante 1 mes post-entrega</li>
+                <li>Documentación completa</li>
+                <li>Capacitación del equipo si es necesario</li>
+            </ul>
+        </div>
+
+        <div class="section" style="margin-bottom: 100px;">
+            <h2>📞 Contacto</h2>
+            <p>¿Tienes preguntas o quieres discutir los detalles del proyecto?</p>
+            <p>Estamos aquí para ayudarte a hacer realidad tu visión.</p>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
