@@ -165,7 +165,14 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
       formData.append('logo', logoFile);
       
       try {
-        const response = await fetch('{{ section.settings.render_api_url | default: "https://reduncle-custom-lead.onrender.com" }}/api/upload-logo', {
+        // Extraer la base URL (sin /api/create-client si está presente)
+        const apiUrl = '{{ section.settings.render_api_url | default: "https://reduncle-custom-lead.onrender.com/api/create-client" }}';
+        const baseUrl = apiUrl.replace(/\/api\/create-client$/, '');
+        const uploadUrl = baseUrl + '/api/upload-logo';
+        
+        console.log('📤 Subiendo logo a:', uploadUrl);
+        
+        const response = await fetch(uploadUrl, {
           method: 'POST',
           body: formData
         });
@@ -177,15 +184,10 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
         const data = await response.json();
         return data.url;
       } catch (error) {
-        console.error('Error al subir logo:', error);
-        // Si falla, usar base64 como fallback
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            resolve(e.target.result);
-          };
-          reader.readAsDataURL(logoFile);
-        });
+        console.error('❌ Error al subir logo:', error);
+        // Si falla, retornar null (no incluir logo en el prompt para evitar payload demasiado grande)
+        alert('⚠️ No se pudo subir el logo. La página se creará sin logo.');
+        return null;
       }
     }
     
