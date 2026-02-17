@@ -3,9 +3,39 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs-extra');
 const path = require('path');
 const OpenAI = require('openai');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configurar multer para subida de imágenes
+const storage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+        const uploadDir = path.join(__dirname, 'public', 'logos');
+        await fs.ensureDir(uploadDir);
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+        cb(null, uniqueName);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|svg|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (extname && mimetype) {
+            cb(null, true);
+        } else {
+            cb(new Error('Solo se permiten imágenes (JPG, PNG, SVG, WEBP, GIF)'));
+        }
+    }
+});
 
 // Middleware
 app.use(express.json());
@@ -248,6 +278,18 @@ async function personalizeContent(clientData, templateHtml, customPrompt = null)
     }
 
     try {
+        // Extraer URL de logo/imagen del prompt si está presente
+        let logoUrl = null;
+        if (customPrompt) {
+            // Buscar URLs de imágenes en el prompt (http/https, .jpg, .png, .svg, .webp, etc.)
+            const imageUrlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|svg|webp|gif|bmp))/gi;
+            const imageMatches = customPrompt.match(imageUrlRegex);
+            if (imageMatches && imageMatches.length > 0) {
+                logoUrl = imageMatches[0]; // Usar la primera URL de imagen encontrada
+                console.log(`🖼️ Logo encontrado en prompt: ${logoUrl}`);
+            }
+        }
+        
         console.log('📝 Extrayendo SOLO textos del HTML...');
         const { texts, placeholders } = extractTextsOnly(templateHtml);
         
@@ -258,16 +300,32 @@ async function personalizeContent(clientData, templateHtml, customPrompt = null)
         
         console.log(`✅ Extraídos ${texts.length} textos (${texts.reduce((sum, t) => sum + t.original.length, 0)} caracteres totales)`);
         
+        // Log de textos extraídos para debug (especialmente precio)
+        const precioTexts = texts.filter(t => t.original.toLowerCase().includes('precio') || t.original.toLowerCase().includes('inversión') || t.original.toLowerCase().includes('cotización'));
+        if (precioTexts.length > 0) {
+            console.log(`💰 Textos relacionados con precio encontrados: ${precioTexts.length}`);
+            precioTexts.forEach(t => console.log(`   - [${t.tag}] ${t.original.substring(0, 50)}...`));
+        }
+        
         // Crear lista de textos para enviar a ChatGPT
         const textsList = texts.map((t, i) => `${i + 1}. [${t.tag}] ${t.original}`).join('\n');
         
         // Si hay un prompt personalizado, usarlo; si no, usar el prompt por defecto
         let prompt;
         if (customPrompt) {
-            prompt = `${customPrompt}
+            let logoInstruction = '';
+            if (logoUrl) {
+                logoInstruction = `\n\n🖼️ LOGO DISPONIBLE:
+- URL del logo: ${logoUrl}
+- El logo se inyectará automáticamente en la página después de personalizar los textos
+- No necesitas mencionar el logo en tu respuesta, solo personaliza los textos`;
+            }
+            
+            prompt = `${customPrompt}${logoInstruction}
 
-INSTRUCCIONES:
+INSTRUCCIONES IMPORTANTES:
 - Personaliza SOLO los textos siguientes según el prompt anterior
+- Si el prompt menciona un PRECIO, INVERSIÓN, o COSTO, asegúrate de personalizar TODOS los textos relacionados con precio (incluyendo "Precio del Proyecto", "Personalizado según necesidades", "Contacta con nosotros para una cotización", etc.)
 - Mantén el formato: número. [tipo] texto_personalizado
 - NO cambies los números ni los tipos entre corchetes
 - Devuelve SOLO la lista de textos personalizados, uno por línea, sin explicaciones
@@ -286,8 +344,12 @@ Timeline: ${clientData.timeline || ''}
 Equipo: ${clientData.equipo || ''}
 Precio: ${clientData.precio || ''}
 
-INSTRUCCIONES:
+INSTRUCCIONES IMPORTANTES:
 - Personaliza SOLO los textos siguientes según los datos del cliente
+- Si hay un PRECIO especificado arriba (${clientData.precio || 'NO HAY PRECIO'}), asegúrate de personalizar TODOS los textos relacionados con precio:
+  * "Precio del Proyecto" → usa el precio especificado
+  * "Personalizado según necesidades" → reemplázalo con el precio real
+  * "Contacta con nosotros para una cotización" → personalízalo según el precio
 - Mantén el formato: número. [tipo] texto_personalizado
 - NO cambies los números ni los tipos entre corchetes
 - Devuelve SOLO la lista de textos personalizados, uno por línea, sin explicaciones
@@ -304,7 +366,13 @@ ${textsList}`;
             messages: [
                 {
                     role: "system",
-                    content: `Eres un experto en personalizar textos. Devuelve SOLO los textos personalizados en el mismo formato que recibes (número. [tipo] texto), uno por línea, sin explicaciones.`
+                    content: `Eres un experto en personalizar textos. 
+
+IMPORTANTE:
+- Personaliza TODOS los textos, especialmente los relacionados con PRECIO, INVERSIÓN, y COTIZACIÓN
+- Si el prompt menciona un precio específico, úsalo en los textos relacionados con precio
+- Devuelve SOLO los textos personalizados en el mismo formato que recibes (número. [tipo] texto), uno por línea, sin explicaciones
+- Asegúrate de personalizar TODOS los textos, especialmente los del precio`
                 },
                 {
                     role: "user",
@@ -343,8 +411,57 @@ ${textsList}`;
         
         console.log(`🔄 Reemplazando ${personalizedTexts.length} textos en HTML original...`);
         
+        // Verificar textos de precio personalizados
+        const precioPersonalizados = personalizedTexts.filter(t => 
+            t.original.toLowerCase().includes('precio') || 
+            t.original.toLowerCase().includes('personalizado') || 
+            t.original.toLowerCase().includes('cotización') ||
+            t.personalized.toLowerCase().includes('precio') ||
+            t.personalized.toLowerCase().includes('€') ||
+            t.personalized.toLowerCase().includes('euro')
+        );
+        if (precioPersonalizados.length > 0) {
+            console.log(`💰 Textos de precio personalizados: ${precioPersonalizados.length}`);
+            precioPersonalizados.forEach(t => console.log(`   - "${t.original.substring(0, 40)}..." → "${t.personalized.substring(0, 40)}..."`));
+        }
+        
         // Reemplazar textos en el HTML original
-        const finalHtml = replaceTextsInHtml(templateHtml, personalizedTexts);
+        let finalHtml = replaceTextsInHtml(templateHtml, personalizedTexts);
+        
+        // Inyectar logo si está disponible
+        if (logoUrl) {
+            console.log(`🖼️ Inyectando logo en HTML: ${logoUrl}`);
+            // Buscar el elemento logo-img y actualizar su src
+            const logoImgRegex = /<img id="logo-img"[^>]*src="[^"]*"/i;
+            if (logoImgRegex.test(finalHtml)) {
+                // Reemplazar el src vacío o existente con la URL del logo
+                finalHtml = finalHtml.replace(
+                    /<img id="logo-img"[^>]*src="[^"]*"/i,
+                    `<img id="logo-img" src="${logoUrl}"`
+                );
+                // Asegurar que el logo esté visible
+                finalHtml = finalHtml.replace(
+                    /<img id="logo-img"[^>]*style="[^"]*"/i,
+                    (match) => {
+                        if (match.includes('display: none')) {
+                            return match.replace('display: none', 'display: block');
+                        }
+                        return match;
+                    }
+                );
+                console.log('✅ Logo inyectado correctamente en el HTML');
+            } else {
+                console.warn('⚠️ No se encontró el elemento logo-img en el HTML');
+            }
+        }
+        
+        // Verificar que el precio se haya reemplazado en el HTML final
+        const precioEnHtml = finalHtml.match(/<h3[^>]*>([^<]*precio[^<]*)<\/h3>/i) || finalHtml.match(/<p[^>]*>([^<]*€[^<]*)<\/p>/i);
+        if (precioEnHtml) {
+            console.log(`✅ Precio encontrado en HTML final: "${precioEnHtml[1].substring(0, 50)}..."`);
+        } else {
+            console.warn(`⚠️ No se encontró precio en el HTML final. Verifica que se haya personalizado.`);
+        }
         
         console.log('✅ HTML personalizado generado exitosamente');
         console.log(`📊 Tamaño del HTML final: ${finalHtml.length} caracteres`);
@@ -363,6 +480,34 @@ ${textsList}`;
             .replace(/\{\{cliente\.precio\}\}/g, clientData.precio || '');
     }
 }
+
+// Endpoint para subir logo
+app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'No se proporcionó ninguna imagen'
+            });
+        }
+        
+        const logoUrl = `${req.protocol}://${req.get('host')}/logos/${req.file.filename}`;
+        
+        console.log('✅ Logo subido:', logoUrl);
+        
+        res.json({
+            success: true,
+            url: logoUrl,
+            filename: req.file.filename
+        });
+    } catch (error) {
+        console.error('❌ Error al subir logo:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {

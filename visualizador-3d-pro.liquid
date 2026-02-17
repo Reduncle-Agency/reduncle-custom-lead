@@ -37,7 +37,7 @@
   </style>
   <div class="render-iframe-container">
     <iframe 
-      src="{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}"
+      src="{% if section.settings.logo_image %}{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}?logo={{ section.settings.logo_image | image_url | url_param_escape }}{% else %}{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}{% endif %}"
       frameborder="0"
       allowfullscreen
       allow="fullscreen"
@@ -65,7 +65,11 @@
 {% else %}
   {% comment %} Opción 2: Redirigir directamente {% endcomment %}
   <script>
-    window.location.href = "{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}";
+    {% if section.settings.logo_image %}
+      window.location.href = "{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}?logo={{ section.settings.logo_image | image_url | url_param_escape }}";
+    {% else %}
+      window.location.href = "{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}";
+    {% endif %}
   </script>
   
   {% comment %} Mensaje mientras redirige {% endcomment %}
@@ -79,6 +83,12 @@
 {
   "name": "Visualizador 3D Pro",
   "settings": [
+    {
+      "type": "image_picker",
+      "id": "logo_image",
+      "label": "Logo",
+      "info": "Logo que aparecerá arriba en la página (recomendado: máximo 200px de ancho)"
+    },
     {
       "type": "text",
       "id": "render_url",

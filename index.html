@@ -76,6 +76,39 @@
                 pointer-events: auto;
             }
 
+            #logo-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                z-index: 100;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+                pointer-events: none;
+                transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            #logo-img {
+                max-width: 200px;
+                max-height: 80px;
+                width: auto;
+                height: auto;
+                object-fit: contain;
+                pointer-events: none;
+            }
+
+            @media (max-width: 768px) {
+                #logo-container {
+                    padding: 15px;
+                }
+                #logo-img {
+                    max-width: 150px;
+                    max-height: 60px;
+                }
+            }
+
             #content {
                 position: relative;
                 z-index: 10;
@@ -510,6 +543,11 @@
 
     <div id="canvas-container"></div>
         <!-- <div id="instructions">Haz scroll para controlar la velocidad</div> -->
+        
+        <!-- Logo arriba -->
+        <div id="logo-container">
+            <img id="logo-img" src="" alt="Logo" style="display: none;">
+        </div>
 
         <div id="content">
             <div class="section">
@@ -914,6 +952,13 @@
                     h2.style.fontWeight = '700'; // Más bold
                 });
                 
+                // Actualizar logo según el scroll (más visible en fondo oscuro)
+                const logoContainer = document.getElementById('logo-container');
+                if (logoContainer) {
+                    // El logo se ve mejor con más opacidad en fondo oscuro
+                    logoContainer.style.opacity = eased > 0.5 ? '1' : '0.9';
+                }
+                
                 // Actualizar textos del circuito para mejor contraste
                 const circuitDescriptions = document.querySelectorAll('.circuit-step-description');
                 circuitDescriptions.forEach(desc => {
@@ -1290,6 +1335,38 @@
             const mainContainer = document.getElementById('main-container');
             if (mainContainer) {
                 mainContainer.addEventListener('scroll', animateCircuit, { passive: true });
+            }
+            
+            // Cargar logo (primero del HTML si está inyectado, luego de la URL)
+            function loadLogo() {
+                const logoImg = document.getElementById('logo-img');
+                if (!logoImg) return;
+                
+                // Si el logo ya tiene un src (inyectado por el servidor), usarlo
+                if (logoImg.src && logoImg.src !== window.location.href && !logoImg.src.includes('data:,')) {
+                    logoImg.style.display = 'block';
+                    console.log('✅ Logo cargado desde HTML (inyectado por servidor):', logoImg.src);
+                    return;
+                }
+                
+                // Si no, intentar cargarlo desde parámetro de URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const logoUrl = urlParams.get('logo');
+                
+                if (logoUrl) {
+                    logoImg.src = decodeURIComponent(logoUrl);
+                    logoImg.style.display = 'block';
+                    console.log('✅ Logo cargado desde URL:', logoUrl);
+                } else {
+                    console.log('ℹ️ No se proporcionó logo (ni en HTML ni en URL)');
+                }
+            }
+            
+            // Cargar logo al iniciar
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadLogo);
+            } else {
+                loadLogo();
             }
         </script>
     </div>
