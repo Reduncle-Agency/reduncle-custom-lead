@@ -1,0 +1,83 @@
+{% comment %}
+  Visualizador 3D Pro - Sección de Shopify
+  Muestra la página personalizada desde Render
+{% endcomment %}
+
+{% if section.settings.modo == 'iframe' %}
+  {% comment %} Opción 1: Mostrar en iframe {% endcomment %}
+  <div style="width: 100%; height: 100vh; border: none; overflow: hidden; position: relative;">
+    <iframe 
+      src="{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}"
+      style="width: 100%; height: 100vh; border: none; display: block;"
+      frameborder="0"
+      allowfullscreen
+      allow="fullscreen"
+      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+      loading="lazy"
+      id="render-iframe"
+    ></iframe>
+  </div>
+  
+  <script>
+    // Asegurar que el iframe cargue correctamente
+    document.addEventListener('DOMContentLoaded', function() {
+      const iframe = document.getElementById('render-iframe');
+      if (iframe) {
+        iframe.onload = function() {
+          console.log('Iframe cargado correctamente');
+        };
+        iframe.onerror = function() {
+          console.error('Error al cargar iframe');
+        };
+      }
+    });
+  </script>
+{% else %}
+  {% comment %} Opción 2: Redirigir directamente {% endcomment %}
+  <script>
+    window.location.href = "{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}";
+  </script>
+  
+  {% comment %} Mensaje mientras redirige {% endcomment %}
+  <div style="text-align: center; padding: 50px;">
+    <p>Cargando visualizador 3D...</p>
+    <p><a href="{{ section.settings.render_url | default: 'https://reduncle-custom-lead.onrender.com' }}">Click aquí si no redirige automáticamente</a></p>
+  </div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Visualizador 3D Pro",
+  "settings": [
+    {
+      "type": "text",
+      "id": "render_url",
+      "label": "URL de Render",
+      "default": "https://reduncle-custom-lead.onrender.com",
+      "info": "URL completa de la página en Render (puede ser la URL base o una URL de cliente específico)"
+    },
+    {
+      "type": "select",
+      "id": "modo",
+      "label": "Modo de visualización",
+      "options": [
+        {
+          "value": "iframe",
+          "label": "Mostrar en iframe (embebido)"
+        },
+        {
+          "value": "redirect",
+          "label": "Redirigir a la página"
+        }
+      ],
+      "default": "iframe",
+      "info": "iframe: muestra la página dentro de Shopify. Redirect: redirige a la página completa."
+    }
+  ],
+  "presets": [
+    {
+      "name": "Visualizador 3D Pro"
+    }
+  ]
+}
+{% endschema %}
