@@ -45,6 +45,21 @@
                 -webkit-font-smoothing: antialiased;
                 -moz-osx-font-smoothing: grayscale;
                 letter-spacing: -0.01em;
+                -ms-overflow-style: none !important;
+                scrollbar-width: none !important;
+            }
+            
+            #main-container::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+                background: transparent !important;
+            }
+            
+            #main-container::-webkit-scrollbar-track,
+            #main-container::-webkit-scrollbar-thumb {
+                display: none !important;
+                background: transparent !important;
             }
 
             #canvas-container {
