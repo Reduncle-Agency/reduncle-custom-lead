@@ -17,7 +17,13 @@ app.use((req, res, next) => {
     res.setHeader('Content-Security-Policy', "frame-ancestors *");
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Manejar preflight OPTIONS explícitamente
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
     next();
 });
 
@@ -71,7 +77,64 @@ async function loadClientsFromFile() {
     }
 }
 
-// Función para personalizar el HTML con IA
+// Función para extraer solo las secciones de texto que necesitan personalización
+function extractTextSections(html) {
+    // Extraer contenido de las secciones principales usando regex
+    const sections = {
+        h1: html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || '',
+        objetivos: html.match(/<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
+        alcance: html.match(/<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
+        timeline: html.match(/<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
+        equipo: html.match(/<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
+        precio: html.match(/<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || '',
+        contacto: html.match(/<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)(?=<h2|<\/div>)/i)?.[1] || ''
+    };
+    
+    // Limpiar HTML pero mantener estructura básica
+    Object.keys(sections).forEach(key => {
+        if (sections[key]) {
+            // Remover atributos innecesarios pero mantener etiquetas
+            sections[key] = sections[key]
+                .replace(/style="[^"]*"/gi, '')
+                .replace(/class="[^"]*"/gi, '')
+                .trim();
+        }
+    });
+    
+    return sections;
+}
+
+// Función para reemplazar secciones en el HTML original
+function replaceTextSections(html, personalizedSections) {
+    let result = html;
+    
+    // Reemplazar cada sección
+    if (personalizedSections.h1) {
+        result = result.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, `<h1>${personalizedSections.h1}</h1>`);
+    }
+    if (personalizedSections.objetivos) {
+        result = result.replace(/(<h2[^>]*>🎯 Objetivos<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.objetivos}`);
+    }
+    if (personalizedSections.alcance) {
+        result = result.replace(/(<h2[^>]*>📋 Alcance del Proyecto<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.alcance}`);
+    }
+    if (personalizedSections.timeline) {
+        result = result.replace(/(<h2[^>]*>📅 Timeline y Planificación<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.timeline}`);
+    }
+    if (personalizedSections.equipo) {
+        result = result.replace(/(<h2[^>]*>👥 Con Quien Trabajamos<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.equipo}`);
+    }
+    if (personalizedSections.precio) {
+        result = result.replace(/(<h2[^>]*>💰 Inversión<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.precio}`);
+    }
+    if (personalizedSections.contacto) {
+        result = result.replace(/(<h2[^>]*>📞 Contacto<\/h2>)([\s\S]*?)(?=<h2|<\/div>)/i, `$1${personalizedSections.contacto}`);
+    }
+    
+    return result;
+}
+
+// Función para personalizar el HTML con IA (OPTIMIZADA - solo envía textos)
 async function personalizeContent(clientData, templateHtml, customPrompt = null) {
     if (!openai) {
         console.warn('OpenAI no configurado, usando personalización básica');
@@ -87,24 +150,49 @@ async function personalizeContent(clientData, templateHtml, customPrompt = null)
     }
 
     try {
+        console.log('📝 Extrayendo secciones de texto del HTML...');
+        const textSections = extractTextSections(templateHtml);
+        
+        // Crear un HTML simplificado solo con las secciones de texto
+        const simplifiedHtml = `
+<h1>${textSections.h1}</h1>
+
+<h2>🎯 Objetivos</h2>
+${textSections.objetivos}
+
+<h2>📋 Alcance del Proyecto</h2>
+${textSections.alcance}
+
+<h2>📅 Timeline y Planificación</h2>
+${textSections.timeline}
+
+<h2>👥 Con Quien Trabajamos</h2>
+${textSections.equipo}
+
+<h2>💰 Inversión</h2>
+${textSections.precio}
+
+<h2>📞 Contacto</h2>
+${textSections.contacto}
+`.trim();
+        
+        console.log(`✅ HTML simplificado: ${simplifiedHtml.length} caracteres (vs ${templateHtml.length} del original)`);
+        
         // Si hay un prompt personalizado, usarlo; si no, usar el prompt por defecto
         let prompt;
         if (customPrompt) {
             prompt = `${customPrompt}
 
-INSTRUCCIONES CRÍTICAS:
-- SOLO cambia los TEXTOS visibles al usuario (títulos, párrafos, listas)
-- NO modifiques NINGÚN código JavaScript, CSS, o estructura HTML
-- NO toques el código de Three.js, animaciones, o efectos visuales
-- El coche 3D debe seguir funcionando exactamente igual
-- Mantén TODOS los estilos, clases, IDs, y atributos intactos
-- Solo personaliza los contenidos de texto dentro de <h1>, <h2>, <h3>, <p>, <li>, etc.
+INSTRUCCIONES:
+- Personaliza SOLO los textos de las secciones siguientes
+- Mantén la estructura HTML básica (etiquetas <h1>, <h2>, <p>, <li>, etc.)
+- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞)
+- Devuelve SOLO el HTML de las secciones personalizadas, sin explicaciones
 
-Devuelve SOLO el HTML completo sin explicaciones ni markdown.`;
+HTML a personalizar:
+${simplifiedHtml}`;
         } else {
-            prompt = `Personaliza SOLO los TEXTOS de este HTML para el cliente.
-
-Datos del cliente:
+            prompt = `Personaliza estos textos para el cliente:
 Nombre: ${clientData.nombre || 'Cliente'}
 Empresa: ${clientData.empresa || ''}
 Objetivos: ${clientData.objetivos || ''}
@@ -113,58 +201,43 @@ Timeline: ${clientData.timeline || ''}
 Equipo: ${clientData.equipo || ''}
 Precio: ${clientData.precio || ''}
 
-INSTRUCCIONES CRÍTICAS:
-- SOLO cambia los TEXTOS visibles (títulos, párrafos, listas)
-- NO modifiques JavaScript, CSS, o estructura HTML
-- NO toques Three.js, animaciones, o efectos
-- El coche 3D debe funcionar igual
-- Mantén TODOS los estilos y código intactos
+INSTRUCCIONES:
+- Personaliza SOLO los textos de las secciones siguientes
+- Mantén la estructura HTML básica (etiquetas <h1>, <h2>, <p>, <li>, etc.)
+- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞)
+- Devuelve SOLO el HTML de las secciones personalizadas, sin explicaciones
 
-Devuelve SOLO el HTML completo sin explicaciones.`;
+HTML a personalizar:
+${simplifiedHtml}`;
         }
 
+        console.log('🤖 Enviando a OpenAI (modelo optimizado)...');
+        const startTime = Date.now();
+        
         const completion = await openai.chat.completions.create({
             model: process.env.OPENAI_MODEL || "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
-                    content: `Eres un experto en personalizar SOLO TEXTOS en páginas web. 
+                    content: `Eres un experto en personalizar textos de páginas web. 
 
-REGLAS CRÍTICAS (NO VIOLAR):
-1. MANTÉN TODO EL CÓDIGO INTACTO:
-   - NO modifiques NINGÚN JavaScript (Three.js, animaciones, efectos, funciones)
-   - NO modifiques NINGÚN CSS (estilos, animaciones, efectos visuales, clases)
-   - NO modifiques la estructura HTML (divs, clases, IDs, atributos)
-   - NO modifiques los scripts de Three.js, GLTFLoader, o cualquier código de animación
-   - NO modifiques los event listeners, funciones de scroll, o efectos visuales
-
-2. SOLO PUEDES CAMBIAR:
-   - Los TEXTOS dentro de las etiquetas <h1>, <h2>, <h3>, <p>, <li>, <div> con contenido de texto
-   - Los textos descriptivos de las secciones (Objetivos, Alcance, Timeline, Equipo, Precio, Contacto)
-   - Los títulos y descripciones de los pasos del circuito
-   - Mantén la estructura exacta de las listas y secciones
-
-3. EL COCHE 3D DEBE FUNCIONAR:
-   - NO toques NADA del código relacionado con Three.js
-   - NO modifiques el canvas, renderer, scene, camera, o car
-   - NO cambies los scripts de importación de Three.js
-   - El coche 3D debe seguir funcionando exactamente igual
-
-4. EFECTOS VISUALES:
-   - NO modifiques CSS de animaciones, transiciones, o efectos
-   - NO cambies colores, gradientes, o efectos visuales
-   - Solo cambia los textos, mantén todos los estilos
-
-IMPORTANTE: Si no estás 100% seguro de si algo es texto o código, NO LO TOQUES. Solo cambia textos claramente visibles al usuario.`
+REGLAS:
+- Solo personaliza los TEXTOS dentro de las etiquetas HTML
+- Mantén TODAS las etiquetas HTML intactas (<h1>, <h2>, <p>, <li>, <ul>, etc.)
+- NO cambies emojis, clases, IDs, o atributos
+- Devuelve SOLO el HTML personalizado sin explicaciones ni markdown`
                 },
                 {
                     role: "user",
-                    content: prompt + "\n\nHTML COMPLETO (mantén TODO el código intacto, solo cambia textos):\n" + templateHtml
+                    content: prompt
                 }
             ],
-            temperature: 0.3, // Temperatura más baja para ser más conservador
-            max_tokens: 16000 // Más tokens para el HTML completo
+            temperature: 0.3,
+            max_tokens: 4000 // Mucho menos tokens porque solo enviamos textos
         });
+        
+        const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`⏱️ OpenAI respondió en ${elapsedTime} segundos`);
 
         let personalizedHtml = completion.choices[0].message.content;
         
@@ -175,7 +248,27 @@ IMPORTANTE: Si no estás 100% seguro de si algo es texto o código, NO LO TOQUES
             personalizedHtml = personalizedHtml.split('```')[1].split('```')[0];
         }
         
-        return personalizedHtml.trim();
+        personalizedHtml = personalizedHtml.trim();
+        
+        console.log('🔄 Reemplazando secciones en HTML original...');
+        
+        // Extraer las secciones personalizadas del resultado
+        const personalizedSections = {
+            h1: personalizedHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || textSections.h1,
+            objetivos: personalizedHtml.match(/<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.objetivos,
+            alcance: personalizedHtml.match(/<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.alcance,
+            timeline: personalizedHtml.match(/<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.timeline,
+            equipo: personalizedHtml.match(/<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.equipo,
+            precio: personalizedHtml.match(/<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.precio,
+            contacto: personalizedHtml.match(/<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)(?=<h2|$)/i)?.[1] || textSections.contacto
+        };
+        
+        // Reemplazar en el HTML original
+        const finalHtml = replaceTextSections(templateHtml, personalizedSections);
+        
+        console.log('✅ HTML personalizado generado exitosamente');
+        
+        return finalHtml;
     } catch (error) {
         console.error('Error al personalizar con IA:', error);
         // Fallback: usar reemplazo simple
@@ -192,10 +285,15 @@ IMPORTANTE: Si no estás 100% seguro de si algo es texto o código, NO LO TOQUES
 
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {
+    console.log('📥 POST /api/create-client recibido');
+    console.log('📋 Body recibido:', req.body ? 'Sí' : 'No');
+    
     try {
         const { prompt } = req.body;
+        console.log('📝 Prompt recibido:', prompt ? `Sí (${prompt.length} caracteres)` : 'No');
         
         if (!prompt || !prompt.trim()) {
+            console.log('❌ Error: Prompt vacío');
             return res.status(400).json({
                 success: false,
                 error: 'El prompt es requerido'
@@ -203,6 +301,7 @@ app.post('/api/create-client', async (req, res) => {
         }
         
         const promptText = prompt.trim();
+        console.log('🔄 Iniciando personalización con IA...');
         
         // Generar ID único para el cliente
         const clientId = uuidv4();
