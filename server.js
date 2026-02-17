@@ -193,33 +193,7 @@ async function personalizeContent(clientData, templateHtml, customPrompt = null)
     }
 
     try {
-        console.log('📝 Extrayendo secciones de texto del HTML...');
-        const textSections = extractTextSections(templateHtml);
-        
-        // Crear un HTML simplificado solo con las secciones de texto
-        const simplifiedHtml = `
-<h1>${textSections.h1}</h1>
-
-<h2>🎯 Objetivos</h2>
-${textSections.objetivos}
-
-<h2>📋 Alcance del Proyecto</h2>
-${textSections.alcance}
-
-<h2>📅 Timeline y Planificación</h2>
-${textSections.timeline}
-
-<h2>👥 Con Quien Trabajamos</h2>
-${textSections.equipo}
-
-<h2>💰 Inversión</h2>
-${textSections.precio}
-
-<h2>📞 Contacto</h2>
-${textSections.contacto}
-`.trim();
-        
-        console.log(`✅ HTML simplificado: ${simplifiedHtml.length} caracteres (vs ${templateHtml.length} del original)`);
+        console.log(`📝 Enviando HTML COMPLETO a OpenAI (${templateHtml.length} caracteres)`);
         
         // Si hay un prompt personalizado, usarlo; si no, usar el prompt por defecto
         let prompt;
@@ -227,17 +201,22 @@ ${textSections.contacto}
             prompt = `${customPrompt}
 
 INSTRUCCIONES CRÍTICAS:
-- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <p>, <li>, <div class="circuit-step-title">, etc.)
-- Mantén TODA la estructura HTML intacta (incluyendo <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
+- Personaliza TODOS los textos de TODA la página según el prompt anterior
+- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <h3>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.)
+- Mantén TODA la estructura HTML intacta (incluyendo <div class="section">, <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
 - Mantén TODOS los atributos (class, id, data-step, style, etc.)
-- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞)
+- Mantén TODO el código JavaScript, CSS, y Three.js INTACTO
+- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞) a menos que el prompt lo indique
 - NO cambies la estructura de circuitos, solo personaliza los textos dentro de circuit-step-title y circuit-step-description
-- Devuelve SOLO el HTML completo de las secciones sin explicaciones ni markdown
+- Personaliza TODOS los textos de TODAS las secciones según el prompt
+- Devuelve SOLO el HTML COMPLETO sin explicaciones ni markdown
 
-HTML a personalizar:
-${simplifiedHtml}`;
+HTML COMPLETO a personalizar:
+${templateHtml}`;
         } else {
-            prompt = `Personaliza estos textos para el cliente:
+            prompt = `Personaliza TODOS los textos de esta página para el cliente:
+
+Datos del cliente:
 Nombre: ${clientData.nombre || 'Cliente'}
 Empresa: ${clientData.empresa || ''}
 Objetivos: ${clientData.objetivos || ''}
@@ -247,18 +226,21 @@ Equipo: ${clientData.equipo || ''}
 Precio: ${clientData.precio || ''}
 
 INSTRUCCIONES CRÍTICAS:
-- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <p>, <li>, <div class="circuit-step-title">, etc.)
-- Mantén TODA la estructura HTML intacta (incluyendo <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
+- Personaliza TODOS los textos de TODAS las secciones según los datos del cliente
+- Personaliza SOLO los TEXTOS dentro de las etiquetas (contenido de <h1>, <h2>, <h3>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.)
+- Mantén TODA la estructura HTML intacta (incluyendo <div class="section">, <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
 - Mantén TODOS los atributos (class, id, data-step, style, etc.)
-- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞)
+- Mantén TODO el código JavaScript, CSS, y Three.js INTACTO
+- NO cambies los emojis (🎯, 📋, 📅, 👥, 💰, 📞) a menos que sea necesario
 - NO cambies la estructura de circuitos, solo personaliza los textos dentro de circuit-step-title y circuit-step-description
-- Devuelve SOLO el HTML completo de las secciones sin explicaciones ni markdown
+- Personaliza TODOS los textos de TODAS las secciones
+- Devuelve SOLO el HTML COMPLETO sin explicaciones ni markdown
 
-HTML a personalizar:
-${simplifiedHtml}`;
+HTML COMPLETO a personalizar:
+${templateHtml}`;
         }
 
-        console.log('🤖 Enviando a OpenAI (modelo optimizado)...');
+        console.log('🤖 Enviando HTML COMPLETO a OpenAI...');
         const startTime = Date.now();
         
         const completion = await openai.chat.completions.create({
@@ -266,15 +248,34 @@ ${simplifiedHtml}`;
             messages: [
                 {
                     role: "system",
-                    content: `Eres un experto en personalizar SOLO TEXTOS de páginas web manteniendo TODA la estructura HTML.
+                    content: `Eres un experto en personalizar SOLO TEXTOS de páginas web manteniendo TODA la estructura HTML, CSS y JavaScript intacta.
 
-REGLAS CRÍTICAS:
-- Solo personaliza los TEXTOS dentro de las etiquetas HTML (contenido de <h1>, <h2>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.)
-- Mantén TODAS las etiquetas HTML intactas (incluyendo <div class="circuit-track">, <div class="circuit-step">, <div class="circuit-node">, etc.)
-- Mantén TODOS los atributos (class, id, data-step, style, etc.)
-- NO cambies emojis (🎯, 📋, 📅, 👥, 💰, 📞)
-- NO cambies estructura de circuitos, solo los textos dentro de circuit-step-title y circuit-step-description
-- Devuelve SOLO el HTML completo de las secciones sin explicaciones ni markdown`
+REGLAS CRÍTICAS (NO VIOLAR):
+1. MANTÉN TODO EL CÓDIGO INTACTO:
+   - NO modifiques NINGÚN JavaScript (Three.js, animaciones, efectos, funciones)
+   - NO modifiques NINGÚN CSS (estilos, animaciones, efectos visuales, clases)
+   - NO modifiques la estructura HTML (divs, clases, IDs, atributos)
+   - NO modifiques los scripts de Three.js, GLTFLoader, o cualquier código de animación
+   - NO modifiques los event listeners, funciones de scroll, o efectos visuales
+
+2. SOLO PUEDES CAMBIAR:
+   - Los TEXTOS dentro de las etiquetas <h1>, <h2>, <h3>, <p>, <li>, <div class="circuit-step-title">, <div class="circuit-step-description">, etc.
+   - Los textos descriptivos de TODAS las secciones (Objetivos, Alcance, Timeline, Equipo, Precio, Contacto)
+   - Los títulos y descripciones de los pasos del circuito
+   - Personaliza TODOS los textos según el prompt proporcionado
+
+3. EL COCHE 3D DEBE FUNCIONAR:
+   - NO toques NADA del código relacionado con Three.js
+   - NO modifiques el canvas, renderer, scene, camera, o car
+   - NO cambies los scripts de importación de Three.js
+   - El coche 3D debe seguir funcionando exactamente igual
+
+4. EFECTOS VISUALES:
+   - NO modifiques CSS de animaciones, transiciones, o efectos
+   - NO cambies colores, gradientes, o efectos visuales (a menos que el prompt lo indique específicamente)
+   - Solo cambia los textos, mantén todos los estilos
+
+IMPORTANTE: Personaliza TODOS los textos de TODA la página según el prompt. Si no estás 100% seguro de si algo es texto o código, NO LO TOQUES. Solo cambia textos claramente visibles al usuario.`
                 },
                 {
                     role: "user",
@@ -282,7 +283,7 @@ REGLAS CRÍTICAS:
                 }
             ],
             temperature: 0.3,
-            max_tokens: 4000 // Mucho menos tokens porque solo enviamos textos
+            max_tokens: 16000 // Tokens suficientes para el HTML completo
         });
         
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -299,37 +300,10 @@ REGLAS CRÍTICAS:
         
         personalizedHtml = personalizedHtml.trim();
         
-        console.log('🔄 Reemplazando secciones en HTML original...');
-        
-        // Extraer las secciones personalizadas del resultado
-        // ChatGPT devuelve el contenido después de cada h2, necesitamos capturarlo todo
-        const personalizedSections = {
-            h1: (() => {
-                const match = personalizedHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                if (match) {
-                    // Si hay contenido después del h1, incluirlo
-                    const afterH1 = personalizedHtml.split(/<\/h1>/i)[1];
-                    if (afterH1 && !afterH1.trim().startsWith('<h2')) {
-                        return match[1] + afterH1.split(/<h2/i)[0];
-                    }
-                    return match[1];
-                }
-                return textSections.h1;
-            })(),
-            objetivos: personalizedHtml.match(/<h2[^>]*>🎯 Objetivos<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.objetivos,
-            alcance: personalizedHtml.match(/<h2[^>]*>📋 Alcance del Proyecto<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.alcance,
-            timeline: personalizedHtml.match(/<h2[^>]*>📅 Timeline y Planificación<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.timeline,
-            equipo: personalizedHtml.match(/<h2[^>]*>👥 Con Quien Trabajamos<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.equipo,
-            precio: personalizedHtml.match(/<h2[^>]*>💰 Inversión<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.precio,
-            contacto: personalizedHtml.match(/<h2[^>]*>📞 Contacto<\/h2>([\s\S]*?)(?=<h2[^>]*>|$)/i)?.[1]?.trim() || textSections.contacto
-        };
-        
-        // Reemplazar en el HTML original
-        const finalHtml = replaceTextSections(templateHtml, personalizedSections);
-        
         console.log('✅ HTML personalizado generado exitosamente');
+        console.log(`📊 Tamaño del HTML personalizado: ${personalizedHtml.length} caracteres`);
         
-        return finalHtml;
+        return personalizedHtml;
     } catch (error) {
         console.error('Error al personalizar con IA:', error);
         // Fallback: usar reemplazo simple
