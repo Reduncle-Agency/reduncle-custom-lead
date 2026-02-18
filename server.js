@@ -1014,9 +1014,13 @@ app.get('/api/client/:clientId', (req, res) => {
 // Endpoint para recibir token de Shopify cuando se instala la app
 app.post('/api/shopify/token', (req, res) => {
     try {
+        console.log(`📥 POST /api/shopify/token recibido`);
+        console.log(`📦 Body recibido:`, JSON.stringify(req.body));
+        
         const { shop, accessToken, scope } = req.body;
         
         if (!shop || !accessToken) {
+            console.error(`❌ Faltan datos: shop=${shop}, accessToken=${accessToken ? 'presente' : 'ausente'}`);
             return res.status(400).json({ error: 'Faltan shop o accessToken' });
         }
         
@@ -1027,8 +1031,9 @@ app.post('/api/shopify/token', (req, res) => {
             receivedAt: new Date().toISOString(),
         });
         
-        console.log(`✅ Token recibido para tienda: ${shop}`);
-        console.log(`📝 Token: ${accessToken.substring(0, 20)}...`);
+        console.log(`✅ Token recibido y guardado para tienda: ${shop}`);
+        console.log(`📝 Token (primeros 20 chars): ${accessToken.substring(0, 20)}...`);
+        console.log(`📊 Total de tokens guardados: ${shopifyTokens.size}`);
         
         res.json({ 
             success: true, 
@@ -1037,19 +1042,25 @@ app.post('/api/shopify/token', (req, res) => {
         });
     } catch (error) {
         console.error('❌ Error al guardar token:', error);
-        res.status(500).json({ error: 'Error al guardar token' });
+        console.error('❌ Stack:', error.stack);
+        res.status(500).json({ error: 'Error al guardar token', details: error.message });
     }
 });
 
 // Endpoint para obtener token de una tienda
 app.get('/api/shopify/token/:shop', (req, res) => {
     const { shop } = req.params;
+    console.log(`🔍 GET /api/shopify/token/${shop} solicitado`);
+    console.log(`📊 Tokens disponibles: ${Array.from(shopifyTokens.keys()).join(', ')}`);
+    
     const tokenData = shopifyTokens.get(shop);
     
     if (!tokenData) {
+        console.log(`❌ No se encontró token para ${shop}`);
         return res.status(404).json({ error: `No se encontró token para ${shop}` });
     }
     
+    console.log(`✅ Token encontrado para ${shop}`);
     res.json({
         shop,
         accessToken: tokenData.accessToken,
