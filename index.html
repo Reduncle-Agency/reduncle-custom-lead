@@ -915,18 +915,28 @@
                 // Interpolación suave usando easing
                 const eased = easeInOutCubic(scrollProgress);
                 
-                // Calcular colores: fondo de blanco a NEGRO
+                // Calcular colores: fondo de blanco a NEGRO con transición suave
                 const bgR = Math.round(255 - (255 * eased));
                 const bgG = Math.round(255 - (255 * eased));
                 const bgB = Math.round(255 - (255 * eased));
                 const bgColor = `rgb(${bgR}, ${bgG}, ${bgB})`;
                 
-                // Texto: de negro oscuro a BLANCO cuando hay scroll
-                // Al inicio: negro muy oscuro (#1a1a1a) para mejor contraste
-                // Al hacer scroll: blanco (#ffffff)
-                const textR = Math.round(26 + (229 * eased)); // De 26 (1a) a 255 (ff)
-                const textG = Math.round(26 + (229 * eased));
-                const textB = Math.round(26 + (229 * eased));
+                // Texto: asegurar contraste suficiente siempre
+                // Si el fondo es claro (eased < 0.5), texto oscuro
+                // Si el fondo es oscuro (eased >= 0.5), texto claro
+                // Nunca permitir que estén cerca (contraste mínimo de 100 en escala RGB)
+                let textR, textG, textB;
+                if (eased < 0.5) {
+                    // Fondo claro: texto oscuro (#1a1a1a)
+                    textR = 26;
+                    textG = 26;
+                    textB = 26;
+                } else {
+                    // Fondo oscuro: texto claro (#ffffff)
+                    textR = 255;
+                    textG = 255;
+                    textB = 255;
+                }
                 const textColor = `rgb(${textR}, ${textG}, ${textB})`;
                 
                 // Aplicar colores al contenedor con !important para forzar
@@ -958,16 +968,51 @@
                 
                 const pElements = document.querySelectorAll('p, li');
                 pElements.forEach(el => {
-                    el.style.color = textColor;
-                    el.style.fontWeight = '400';
-                    // Asegurar buen contraste
+                    // Asegurar buen contraste siempre
                     if (eased < 0.5) {
-                        // Al inicio, texto más oscuro para mejor legibilidad
-                        el.style.color = `rgb(${Math.max(26, textR - 20)}, ${Math.max(26, textG - 20)}, ${Math.max(26, textB - 20)})`;
+                        // Al inicio (fondo claro), texto oscuro para mejor legibilidad
+                        el.style.color = '#1a1a1a';
+                        el.style.fontWeight = '400';
                     } else {
-                        el.style.color = textColor;
+                        // Al hacer scroll (fondo oscuro), texto claro
+                        el.style.color = '#ffffff';
+                        el.style.fontWeight = '400';
                     }
                 });
+                
+                // Actualizar textos dentro de la caja de información del cliente
+                const clientInfoSection = document.getElementById('client-info-in-section');
+                if (clientInfoSection) {
+                    // Actualizar fondo de la caja según scroll
+                    if (eased < 0.5) {
+                        clientInfoSection.style.background = 'rgba(255, 255, 255, 0.95)';
+                        clientInfoSection.style.borderColor = 'rgba(255, 0, 0, 0.3)';
+                    } else {
+                        clientInfoSection.style.background = 'rgba(30, 30, 30, 0.95)';
+                        clientInfoSection.style.borderColor = 'rgba(255, 0, 0, 0.5)';
+                    }
+                    
+                    // Actualizar todos los textos dentro de la caja
+                    const clientTexts = clientInfoSection.querySelectorAll('p');
+                    clientTexts.forEach(p => {
+                        // El nombre y precio siempre en rojo
+                        if (p.id === 'client-name-text' || p.id === 'client-precio-text') {
+                            p.style.color = '#ff0000';
+                        } else if (p.id === 'client-company-text') {
+                            // Empresa: oscuro en fondo claro, claro en fondo oscuro
+                            p.style.color = eased < 0.5 ? '#1a1a1a' : '#ffffff';
+                        } else {
+                            // Títulos de sección (Objetivos, Alcance, etc.)
+                            if (p.textContent.match(/^(🎯|📋|⏱️|👥|💰)/)) {
+                                p.style.color = eased < 0.5 ? '#333' : '#ffffff';
+                                p.style.fontWeight = '700';
+                            } else {
+                                // Textos de contenido
+                                p.style.color = eased < 0.5 ? '#555' : '#e0e0e0';
+                            }
+                        }
+                    });
+                }
                 
                 // Mantener h1 y h2 en ROJO siempre (no cambian con scroll)
                 const h1Elements = document.querySelectorAll('h1');
