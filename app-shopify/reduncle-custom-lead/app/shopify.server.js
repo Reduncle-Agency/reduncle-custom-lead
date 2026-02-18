@@ -17,11 +17,40 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   future: {
-    expiringOfflineAccessTokens: true,
+    expiringOfflineAccessTokens: false, // Cambiar a false para tokens permanentes no caducables
   },
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
+  hooks: {
+    afterAuth: async ({ session }) => {
+      // Este hook se ejecuta cuando se instala la app
+      // Enviar el token permanente al proxy
+      const PROXY_URL = process.env.PROXY_URL || "https://reduncle-custom-lead.onrender.com";
+      
+      try {
+        const response = await fetch(`${PROXY_URL}/api/shopify/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            shop: session.shop,
+            accessToken: session.accessToken,
+            scope: session.scope || "",
+          }),
+        });
+
+        if (response.ok) {
+          console.log(`✅ Token enviado al proxy para ${session.shop}`);
+        } else {
+          console.error(`❌ Error al enviar token al proxy: ${response.statusText}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error al enviar token al proxy:`, error);
+      }
+    },
+  },
 });
 
 export default shopify;

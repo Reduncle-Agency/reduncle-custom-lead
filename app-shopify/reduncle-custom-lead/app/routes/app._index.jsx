@@ -1,14 +1,80 @@
+import { useEffect, useState } from "react";
+import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
-  return null;
+  const { session } = await authenticate.admin(request);
+  
+  const PROXY_URL = process.env.PROXY_URL || "https://reduncle-custom-lead.onrender.com";
+  
+  // Obtener token del proxy
+  let tokenData = null;
+  if (session?.shop) {
+    try {
+      const response = await fetch(`${PROXY_URL}/api/shopify/token/${session.shop}`);
+      if (response.ok) {
+        tokenData = await response.json();
+      }
+    } catch (error) {
+      console.error("Error al obtener token:", error);
+    }
+  }
+  
+  return { 
+    shop: session?.shop || null,
+    tokenData,
+    PROXY_URL,
+  };
 };
 
 export default function Index() {
+  const { shop, tokenData, PROXY_URL } = useLoaderData();
+  const [copied, setCopied] = useState(false);
+
+  const copyToken = () => {
+    if (tokenData?.accessToken) {
+      navigator.clipboard.writeText(tokenData.accessToken);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <s-page heading="Reduncle Custom Lead">
+      <s-section heading="🔑 Token de Acceso Permanente">
+        {tokenData ? (
+          <s-stack direction="block" gap="base">
+            <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+              <s-stack direction="block" gap="tight">
+                <s-text variant="headingMd">Tienda: {shop}</s-text>
+                <s-text variant="bodyMd">Token recibido: {new Date(tokenData.receivedAt).toLocaleString()}</s-text>
+                <s-text variant="bodyMd">Scope: {tokenData.scope || "N/A"}</s-text>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+              <s-stack direction="block" gap="tight">
+                <s-text variant="headingMd">Access Token:</s-text>
+                <s-box padding="base" background="base" borderRadius="base">
+                  <s-text variant="bodyMd" fontFamily="mono">
+                    {tokenData.accessToken}
+                  </s-text>
+                </s-box>
+                <s-button onClick={copyToken} variant="secondary">
+                  {copied ? "✅ Copiado!" : "📋 Copiar Token"}
+                </s-button>
+              </s-stack>
+            </s-box>
+          </s-stack>
+        ) : (
+          <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+            <s-text variant="bodyMd">
+              ⏳ No se ha recibido token aún. El token se enviará automáticamente cuando se instale la app.
+            </s-text>
+          </s-box>
+        )}
+      </s-section>
+
       <s-section heading="🚀 Crear Página Personalizada con IA">
         <s-paragraph>
           Crea páginas personalizadas para tus clientes usando inteligencia artificial. 

@@ -75,6 +75,9 @@ if (process.env.OPENAI_API_KEY) {
 // Almacenamiento en memoria (en producción usar base de datos)
 const clients = new Map();
 
+// Almacenamiento de tokens de Shopify (shop -> token)
+const shopifyTokens = new Map();
+
 // Función para guardar clientes en archivo JSON (persistencia básica)
 async function saveClientsToFile() {
     try {
@@ -1006,6 +1009,65 @@ app.get('/api/client/:clientId', (req, res) => {
     }
     
     res.json(client);
+});
+
+// Endpoint para recibir token de Shopify cuando se instala la app
+app.post('/api/shopify/token', (req, res) => {
+    try {
+        const { shop, accessToken, scope } = req.body;
+        
+        if (!shop || !accessToken) {
+            return res.status(400).json({ error: 'Faltan shop o accessToken' });
+        }
+        
+        // Guardar token asociado a la tienda
+        shopifyTokens.set(shop, {
+            accessToken,
+            scope: scope || '',
+            receivedAt: new Date().toISOString(),
+        });
+        
+        console.log(`✅ Token recibido para tienda: ${shop}`);
+        console.log(`📝 Token: ${accessToken.substring(0, 20)}...`);
+        
+        res.json({ 
+            success: true, 
+            message: `Token guardado para ${shop}`,
+            shop,
+        });
+    } catch (error) {
+        console.error('❌ Error al guardar token:', error);
+        res.status(500).json({ error: 'Error al guardar token' });
+    }
+});
+
+// Endpoint para obtener token de una tienda
+app.get('/api/shopify/token/:shop', (req, res) => {
+    const { shop } = req.params;
+    const tokenData = shopifyTokens.get(shop);
+    
+    if (!tokenData) {
+        return res.status(404).json({ error: `No se encontró token para ${shop}` });
+    }
+    
+    res.json({
+        shop,
+        accessToken: tokenData.accessToken,
+        scope: tokenData.scope,
+        receivedAt: tokenData.receivedAt,
+    });
+});
+
+// Endpoint para listar todas las tiendas con tokens
+app.get('/api/shopify/tokens', (req, res) => {
+    const tokens = Array.from(shopifyTokens.entries()).map(([shop, data]) => ({
+        shop,
+        scope: data.scope,
+        receivedAt: data.receivedAt,
+        tokenPreview: data.accessToken.substring(0, 20) + '...',
+    }));
+    
+    res.json({ tokens });
 });
 
 // Endpoint de salud

@@ -2,7 +2,7 @@
 
 client_id = "dacbfa2fff345564d0575a53798c375c"
 name = "reduncle-custom-lead"
-application_url = "https://reduncle-custom-lead.onrender.com"
+application_url = "https://reduncle-custom-lead.onrender.com/admin"
 embedded = true
 
 [build]
