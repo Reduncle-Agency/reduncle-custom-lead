@@ -7,7 +7,6 @@ export const loader = async ({ request }) => {
 };
 
 export default function Index() {
-
   return (
     <s-page heading="Reduncle Custom Lead">
       <s-section heading="🚀 Crear Página Personalizada con IA">
