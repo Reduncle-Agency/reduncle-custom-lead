@@ -8,15 +8,21 @@ export const loader = async ({ request }) => {
   
   const PROXY_URL = process.env.PROXY_URL || "https://reduncle-custom-lead.onrender.com";
   
+  console.log(`🔍 Loader ejecutado para shop: ${session?.shop}`);
+  console.log(`🔑 AccessToken presente: ${session?.accessToken ? 'SÍ' : 'NO'}`);
+  
   // Si tenemos sesión pero no hay token en el proxy, enviarlo ahora
   if (session?.shop && session?.accessToken) {
     try {
       // Intentar obtener token del proxy primero
+      console.log(`🔍 Verificando si existe token en proxy para ${session.shop}...`);
       const getResponse = await fetch(`${PROXY_URL}/api/shopify/token/${session.shop}`);
       
       if (!getResponse.ok) {
         // Si no existe, enviarlo ahora
-        console.log(`📤 Enviando token al proxy para ${session.shop}...`);
+        console.log(`📤 Token no existe en proxy. Enviando token para ${session.shop}...`);
+        console.log(`📝 Token a enviar: ${session.accessToken.substring(0, 20)}...`);
+        
         const postResponse = await fetch(`${PROXY_URL}/api/shopify/token`, {
           method: "POST",
           headers: {
@@ -29,25 +35,40 @@ export const loader = async ({ request }) => {
           }),
         });
         
+        const postData = await postResponse.json();
+        console.log(`📥 Respuesta del proxy:`, postData);
+        
         if (postResponse.ok) {
-          console.log(`✅ Token enviado al proxy para ${session.shop}`);
+          console.log(`✅ Token enviado al proxy exitosamente para ${session.shop}`);
+        } else {
+          console.error(`❌ Error al enviar token: ${postResponse.status} - ${JSON.stringify(postData)}`);
         }
+      } else {
+        console.log(`✅ Token ya existe en proxy para ${session.shop}`);
       }
     } catch (error) {
-      console.error("Error al enviar/obtener token:", error);
+      console.error("❌ Error al enviar/obtener token:", error);
+      console.error("❌ Stack:", error.stack);
     }
+  } else {
+    console.warn(`⚠️ No hay sesión o accessToken. Shop: ${session?.shop}, AccessToken: ${session?.accessToken ? 'presente' : 'ausente'}`);
   }
   
   // Obtener token del proxy para mostrarlo
   let tokenData = null;
   if (session?.shop) {
     try {
+      console.log(`🔍 Obteniendo token del proxy para mostrar...`);
       const response = await fetch(`${PROXY_URL}/api/shopify/token/${session.shop}`);
       if (response.ok) {
         tokenData = await response.json();
+        console.log(`✅ Token obtenido del proxy`);
+      } else {
+        const errorData = await response.json();
+        console.log(`⚠️ No se pudo obtener token del proxy: ${JSON.stringify(errorData)}`);
       }
     } catch (error) {
-      console.error("Error al obtener token:", error);
+      console.error("❌ Error al obtener token:", error);
     }
   }
   
