@@ -732,12 +732,9 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
         const localUrl = `${HOST}/uploads/${filename}`;
         
         console.log(`✅ Imagen disponible en GitHub: ${githubUrl}`);
-        console.log(`✅ Imagen disponible localmente: ${localUrl}`);
-        
         res.json({
             success: true,
-            url: githubUrl, // URL de GitHub (persistente)
-            localUrl: localUrl, // URL local (temporal)
+            url: githubUrl, // URL de GitHub (persistente) o local (temporal)
             filename: filename,
             path: `/uploads/${filename}`,
             size: stats.size
@@ -778,32 +775,84 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
         console.log(`📤 Logo subido: ${filename}`);
         console.log(`📁 Guardada en: ${filePath}`);
         
-        // Hacer commit y push a GitHub para persistencia
+        // Subir a GitHub usando la API
         const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
         const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const githubToken = process.env.GITHUB_TOKEN;
         const relativePath = `public/uploads/${filename}`;
         
-        try {
-            await execPromise(`git add ${relativePath}`, { cwd: __dirname });
-            console.log(`✅ Logo agregado a git: ${relativePath}`);
-            
-            await execPromise(`git commit -m "Agregar logo: ${filename}"`, { cwd: __dirname });
-            console.log(`✅ Logo commiteado a git`);
-            
-            // Git push (en background para no bloquear la respuesta)
-            exec(`git push origin ${githubBranch}`, { cwd: __dirname }, (error) => {
-                if (error) {
-                    console.error('⚠️ Error al hacer push:', error.message);
-                } else {
-                    console.log(`✅ Logo pusheado a GitHub`);
+        let githubUrl = null;
+        
+        if (githubToken) {
+            try {
+                // Leer el archivo como base64
+                const fileContent = await fs.readFile(filePath);
+                const base64Content = fileContent.toString('base64');
+                
+                // Obtener el SHA del archivo si existe (para actualizar) o null (para crear)
+                let fileSha = null;
+                try {
+                    const getFileUrl = `https://api.github.com/repos/${githubRepo}/contents/${relativePath}`;
+                    const getFileResponse = await fetch(getFileUrl, {
+                        headers: {
+                            'Authorization': `token ${githubToken}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    
+                    if (getFileResponse.ok) {
+                        const fileData = await getFileResponse.json();
+                        fileSha = fileData.sha;
+                        console.log(`📄 Archivo existe en GitHub, SHA: ${fileSha}`);
+                    }
+                } catch (getError) {
+                    // El archivo no existe, se creará nuevo
+                    console.log(`📄 Archivo nuevo, se creará en GitHub`);
                 }
-            });
-        } catch (gitError) {
-            console.error('⚠️ Error en git (continuando de todas formas):', gitError.message);
+                
+                // Subir/actualizar el archivo en GitHub
+                const uploadUrl = `https://api.github.com/repos/${githubRepo}/contents/${relativePath}`;
+                const uploadData = {
+                    message: `Agregar logo: ${filename}`,
+                    content: base64Content,
+                    branch: githubBranch
+                };
+                
+                if (fileSha) {
+                    uploadData.sha = fileSha;
+                }
+                
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(uploadData)
+                });
+                
+                if (uploadResponse.ok) {
+                    const result = await uploadResponse.json();
+                    githubUrl = result.content.html_url.replace('/blob/', '/raw/');
+                    console.log(`✅ Logo subido a GitHub: ${githubUrl}`);
+                } else {
+                    const errorText = await uploadResponse.text();
+                    console.error('❌ Error al subir a GitHub:', uploadResponse.status, errorText);
+                }
+            } catch (githubError) {
+                console.error('⚠️ Error al subir a GitHub (continuando de todas formas):', githubError.message);
+            }
+        } else {
+            console.log('⚠️ GITHUB_TOKEN no configurado, la imagen solo estará disponible localmente');
         }
         
-        // URL de GitHub (persistente para siempre)
-        const githubUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/${relativePath}`;
+        // Si no se pudo subir a GitHub, usar URL local
+        if (!githubUrl) {
+            const HOST = process.env.HOST || 'https://reduncle-custom-lead.onrender.com';
+            githubUrl = `${HOST}/uploads/${filename}`;
+            console.log(`⚠️ Usando URL local (temporal): ${githubUrl}`);
+        }
         
         console.log(`✅ Logo disponible en GitHub: ${githubUrl}`);
         
