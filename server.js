@@ -11,16 +11,17 @@ const execPromise = util.promisify(exec);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configurar multer para subida de imágenes (guardar en logos/ para GitHub)
+// Configurar multer para subida de imágenes (guardar en public/uploads/)
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
-        // Guardar en logos/ (raíz del proyecto) para poder hacer commit a GitHub
-        const uploadDir = path.join(__dirname, 'logos');
+        // Guardar en public/uploads/ para que sean accesibles públicamente
+        const uploadDir = path.join(__dirname, 'public', 'uploads');
         await fs.ensureDir(uploadDir);
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+        // Nombre único: uuid-timestamp-originalname
+        const uniqueName = `${uuidv4()}-${Date.now()}-${file.originalname}`;
         cb(null, uniqueName);
     }
 });
@@ -47,6 +48,8 @@ const upload = multer({
 app.use(express.json({ limit: '10mb' })); // Aumentar límite para imágenes base64
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
+// Servir imágenes subidas desde public/uploads/
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Headers para permitir iframes (CORS)
 app.use((req, res, next) => {
@@ -665,7 +668,91 @@ IMPORTANTE:
     }
 }
 
-// Endpoint para subir logo
+// Endpoint para subir imagen (logo u otra imagen)
+app.post('/api/upload-image', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'No se proporcionó ninguna imagen'
+            });
+        }
+        
+        const filename = req.file.filename;
+        const filePath = req.file.path;
+        
+        // Verificar que el archivo se guardó correctamente
+        const fileExists = await fs.pathExists(filePath);
+        if (!fileExists) {
+            console.error(`❌ El archivo no se guardó correctamente: ${filePath}`);
+            return res.status(500).json({
+                success: false,
+                error: 'Error al guardar la imagen en el servidor'
+            });
+        }
+        
+        // Obtener estadísticas del archivo
+        const stats = await fs.stat(filePath);
+        console.log(`📤 Imagen subida: ${filename}`);
+        console.log(`📁 Guardada en: ${filePath}`);
+        console.log(`📊 Tamaño: ${stats.size} bytes`);
+        
+        // Hacer commit y push a GitHub para persistencia
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const relativePath = `public/uploads/${filename}`;
+        
+        try {
+            // Git add
+            await execPromise(`git add ${relativePath}`, { cwd: __dirname });
+            console.log(`✅ Imagen agregada a git: ${relativePath}`);
+            
+            // Git commit
+            await execPromise(`git commit -m "Agregar imagen: ${filename}"`, { cwd: __dirname });
+            console.log(`✅ Imagen commiteada a git`);
+            
+            // Git push (en background para no bloquear la respuesta)
+            exec(`git push origin ${githubBranch}`, { cwd: __dirname }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('⚠️ Error al hacer push (se puede hacer manualmente):', error.message);
+                } else {
+                    console.log(`✅ Imagen pusheada a GitHub: ${relativePath}`);
+                }
+            });
+        } catch (gitError) {
+            console.error('⚠️ Error en git (continuando de todas formas):', gitError.message);
+            // Continuar aunque falle git, el archivo ya está guardado localmente
+        }
+        
+        // URL de GitHub (persistente para siempre)
+        const githubUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/${relativePath}`;
+        
+        // URL local de Render (funciona mientras el servicio esté activo)
+        const HOST = process.env.HOST || 'https://reduncle-custom-lead.onrender.com';
+        const localUrl = `${HOST}/uploads/${filename}`;
+        
+        console.log(`✅ Imagen disponible en GitHub: ${githubUrl}`);
+        console.log(`✅ Imagen disponible localmente: ${localUrl}`);
+        
+        res.json({
+            success: true,
+            url: githubUrl, // URL de GitHub (persistente)
+            localUrl: localUrl, // URL local (temporal)
+            filename: filename,
+            path: `/uploads/${filename}`,
+            size: stats.size
+        });
+    } catch (error) {
+        console.error('❌ Error al subir imagen:', error);
+        console.error('❌ Stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Endpoint legacy para compatibilidad (acepta 'logo' como campo)
 app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
     try {
         if (!req.file) {
@@ -676,41 +763,53 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
         }
         
         const filename = req.file.filename;
-        console.log(`📤 Logo subido: ${filename}`);
+        const filePath = req.file.path;
         
-        // Hacer commit y push a GitHub
+        // Verificar que el archivo se guardó correctamente
+        const fileExists = await fs.pathExists(filePath);
+        if (!fileExists) {
+            return res.status(500).json({
+                success: false,
+                error: 'Error al guardar la imagen en el servidor'
+            });
+        }
+        
+        const stats = await fs.stat(filePath);
+        console.log(`📤 Logo subido: ${filename}`);
+        console.log(`📁 Guardada en: ${filePath}`);
+        
+        // Hacer commit y push a GitHub para persistencia
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const relativePath = `public/uploads/${filename}`;
+        
         try {
-            // Git add
-            await execPromise(`git add logos/${filename}`, { cwd: __dirname });
-            console.log(`✅ Logo agregado a git: logos/${filename}`);
+            await execPromise(`git add ${relativePath}`, { cwd: __dirname });
+            console.log(`✅ Logo agregado a git: ${relativePath}`);
             
-            // Git commit
             await execPromise(`git commit -m "Agregar logo: ${filename}"`, { cwd: __dirname });
             console.log(`✅ Logo commiteado a git`);
             
             // Git push (en background para no bloquear la respuesta)
-            exec(`git push origin main`, { cwd: __dirname }, (error, stdout, stderr) => {
+            exec(`git push origin ${githubBranch}`, { cwd: __dirname }, (error) => {
                 if (error) {
-                    console.error('⚠️ Error al hacer push (se puede hacer manualmente):', error.message);
+                    console.error('⚠️ Error al hacer push:', error.message);
                 } else {
-                    console.log(`✅ Logo pusheado a GitHub: logos/${filename}`);
+                    console.log(`✅ Logo pusheado a GitHub`);
                 }
             });
         } catch (gitError) {
             console.error('⚠️ Error en git (continuando de todas formas):', gitError.message);
-            // Continuar aunque falle git, el archivo ya está guardado
         }
         
-        // Construir URL de GitHub raw
-        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
-        const githubBranch = process.env.GITHUB_BRANCH || 'main';
-        const logoUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/logos/${filename}`;
+        // URL de GitHub (persistente para siempre)
+        const githubUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/${relativePath}`;
         
-        console.log('✅ Logo subido correctamente:', logoUrl);
+        console.log(`✅ Logo disponible en GitHub: ${githubUrl}`);
         
         res.json({
             success: true,
-            url: logoUrl,
+            url: githubUrl, // URL de GitHub (persistente)
             filename: filename
         });
     } catch (error) {
@@ -721,9 +820,6 @@ app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
         });
     }
 });
-
-// Endpoint para servir logos desde la carpeta logos/
-app.use('/logos', express.static(path.join(__dirname, 'logos')));
 
 // Endpoint para crear nueva página de cliente
 app.post('/api/create-client', async (req, res) => {
@@ -1091,6 +1187,165 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+// ============================================
+// RUTAS OAUTH PARA OBTENER TOKEN DE SHOPIFY
+// ============================================
+
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || process.env.CLIENT_ID;
+const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET || process.env.CLIENT_SECRET;
+const HOST_URL = process.env.HOST || 'https://reduncle-custom-lead.onrender.com';
+const REDIRECT_URI = `${HOST_URL}/callback`;
+
+// Endpoint de prueba
+app.get('/test-oauth', (req, res) => {
+    res.send(`
+        <h1>🔑 OAuth Token Sender</h1>
+        <p>Para obtener el token permanente, haz clic en el botón:</p>
+        <a href="/auth?shop=red-uncle-agency.myshopify.com" style="display: inline-block; padding: 15px 30px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; font-size: 18px;">
+            🚀 Obtener Token Permanente
+        </a>
+        <hr>
+        <p><strong>O visita directamente:</strong></p>
+        <code>https://reduncle-custom-lead.onrender.com/auth?shop=red-uncle-agency.myshopify.com</code>
+    `);
+});
+
+// Endpoint 1: Iniciar OAuth (llamado automáticamente cuando se instala la app)
+app.get('/auth', (req, res) => {
+    console.log('========================================');
+    console.log('📥 GET /auth recibido');
+    console.log('Query params:', JSON.stringify(req.query));
+    console.log('CLIENT_ID configurado:', SHOPIFY_CLIENT_ID ? 'SÍ' : 'NO');
+    console.log('CLIENT_SECRET configurado:', SHOPIFY_CLIENT_SECRET ? 'SÍ' : 'NO');
+    console.log('========================================');
+    
+    // Shopify puede pasar el shop como query param
+    let shop = req.query.shop;
+    
+    // Si no viene en query, intentar extraer del host o de otros lugares
+    if (!shop) {
+        // Shopify a veces pasa el shop en el header o en el referer
+        const referer = req.get('referer') || '';
+        const shopMatch = referer.match(/https?:\/\/([^.]+\.myshopify\.com)/);
+        if (shopMatch) {
+            shop = shopMatch[1];
+        }
+    }
+    
+    // Si viene desde el enlace de instalación de custom app, extraer del signature
+    if (!shop && req.query.signature) {
+        // El signature contiene el permanent_domain, pero necesitamos parsearlo
+        // Por ahora, requerimos que venga el shop como query param
+    }
+    
+    if (!shop) {
+        return res.status(400).send(`
+            <h1>Missing shop parameter</h1>
+            <p>Use: <a href="/auth?shop=tu-tienda.myshopify.com">/auth?shop=tu-tienda.myshopify.com</a></p>
+            <p>O configura la App URL en Shopify Partners Dashboard para que redirija automáticamente.</p>
+        `);
+    }
+    
+    if (!SHOPIFY_CLIENT_ID) {
+        console.error('❌ CLIENT_ID no configurado');
+        return res.status(500).send('CLIENT_ID not configured. Verifica las variables de entorno en Render.');
+    }
+    
+    console.log(`🚀 Iniciando OAuth para shop: ${shop}`);
+    console.log(`🔑 CLIENT_ID: ${SHOPIFY_CLIENT_ID.substring(0, 10)}...`);
+    
+    const authUrl = `https://${shop}/admin/oauth/authorize?` +
+        `client_id=${SHOPIFY_CLIENT_ID}&` +
+        `scope=read_products,write_products&` +
+        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    
+    console.log(`📤 Redirigiendo a: ${authUrl}`);
+    console.log(`📍 REDIRECT_URI: ${REDIRECT_URI}`);
+    
+    res.redirect(authUrl);
+});
+
+// Endpoint 2: Callback OAuth
+app.get('/callback', async (req, res) => {
+    const { shop, code } = req.query;
+    
+    console.log('========================================');
+    console.log('📥 CALLBACK RECIBIDO');
+    console.log('Shop:', shop);
+    console.log('Code:', code ? 'presente' : 'ausente');
+    console.log('========================================');
+    
+    if (!shop || !code) {
+        console.error('❌ Faltan shop o code');
+        return res.status(400).send('Missing shop or code');
+    }
+    
+    if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
+        console.error('❌ CLIENT_ID o CLIENT_SECRET no configurados');
+        return res.status(500).send('CLIENT_ID or CLIENT_SECRET not configured');
+    }
+    
+    try {
+        console.log(`🔄 Intercambiando code por token en: https://${shop}/admin/oauth/access_token`);
+        
+        const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_id: SHOPIFY_CLIENT_ID,
+                client_secret: SHOPIFY_CLIENT_SECRET,
+                code: code
+            })
+        });
+        
+        const data = await response.json();
+        console.log('📦 Respuesta de Shopify:', JSON.stringify(data));
+        
+        if (data.access_token) {
+            console.log('========================================');
+            console.log('✅ ACCESS TOKEN PERMANENTE OBTENIDO:');
+            console.log(data.access_token);
+            console.log('Shop:', shop);
+            console.log('Scope:', data.scope);
+            console.log('========================================');
+            
+            // Enviar token al proxy (mismo servidor)
+            console.log(`📤 Enviando token al proxy: ${HOST_URL}/api/shopify/token`);
+            try {
+                const proxyResponse = await fetch(`${HOST_URL}/api/shopify/token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shop: shop,
+                        accessToken: data.access_token,
+                        scope: data.scope || 'read_products,write_products'
+                    })
+                });
+                
+                const proxyData = await proxyResponse.json();
+                console.log('📥 Respuesta del proxy:', JSON.stringify(proxyData));
+                
+                if (proxyResponse.ok) {
+                    console.log('✅✅✅ Token enviado al proxy exitosamente ✅✅✅');
+                } else {
+                    console.error('❌ Error al enviar token al proxy:', proxyData);
+                }
+            } catch (error) {
+                console.error('❌ Error al enviar token al proxy:', error.message);
+                console.error('❌ Stack:', error.stack);
+            }
+        } else {
+            console.error('❌ Error obteniendo token de Shopify:', data);
+        }
+        
+        res.send('OK - Token obtenido y enviado al proxy. Revisa los logs de Render.');
+    } catch (error) {
+        console.error('❌ Error completo:', error);
+        console.error('❌ Stack:', error.stack);
+        res.status(500).send('Error');
+    }
+});
+
 // Servir página por defecto (template)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -1101,10 +1356,17 @@ app.listen(PORT, async () => {
     // Cargar clientes existentes al iniciar
     await loadClientsFromFile();
     
+    // Crear directorio de uploads si no existe
+    const uploadsDir = path.join(__dirname, 'public', 'uploads');
+    await fs.ensureDir(uploadsDir);
+    console.log(`📁 Directorio de uploads: ${uploadsDir}`);
+    
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
     console.log(`📝 Endpoint para crear cliente: POST /api/create-client`);
     console.log(`🌐 Ver cliente: GET /client/:clientId`);
     console.log(`📋 Listar clientes: GET /api/clients`);
+    console.log(`🖼️  Subir imagen: POST /api/upload-image o POST /api/upload-logo`);
+    console.log(`📂 Imágenes accesibles en: https://reduncle-custom-lead.onrender.com/uploads/`);
     if (!openai) {
         console.log('⚠️  OPENAI_API_KEY no configurada. Se usará personalización básica.');
     }

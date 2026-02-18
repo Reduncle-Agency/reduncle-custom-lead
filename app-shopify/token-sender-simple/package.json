@@ -1,7 +1,6 @@
 {
   "name": "token-sender-simple",
   "version": "1.0.0",
-  "description": "App simple para obtener token de Shopify y enviarlo al proxy",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

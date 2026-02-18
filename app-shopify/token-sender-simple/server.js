@@ -2,58 +2,85 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const PROXY_URL = process.env.PROXY_URL || "https://reduncle-custom-lead.onrender.com";
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const HOST = process.env.HOST || 'https://reduncle-custom-lead.onrender.com';
+const REDIRECT_URI = `${HOST}/callback`;
 
-app.use(express.json());
+// Endpoint 1: Iniciar OAuth
+app.get('/auth', (req, res) => {
+  const { shop } = req.query;
+  
+  if (!shop) {
+    return res.status(400).send('Missing shop parameter');
+  }
+  
+  const authUrl = `https://${shop}/admin/oauth/authorize?` +
+    `client_id=${CLIENT_ID}&` +
+    `scope=read_products,write_products&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+  
+  res.redirect(authUrl);
+});
 
-// Endpoint simple que recibe el token desde Shopify y lo envía al proxy
-app.post('/receive-token', async (req, res) => {
+// Endpoint 2: Callback OAuth
+app.get('/callback', async (req, res) => {
+  const { shop, code } = req.query;
+  
+  if (!shop || !code) {
+    return res.status(400).send('Missing shop or code');
+  }
+  
   try {
-    const { shop, accessToken, scope } = req.body;
-    
-    console.log(`📥 Token recibido para shop: ${shop}`);
-    
-    if (!shop || !accessToken) {
-      return res.status(400).json({ error: 'Faltan shop o accessToken' });
-    }
-    
-    // Enviar al proxy
-    console.log(`📤 Enviando token al proxy: ${PROXY_URL}/api/shopify/token`);
-    
-    const response = await fetch(`${PROXY_URL}/api/shopify/token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+    const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        shop,
-        accessToken,
-        scope: scope || "",
-      }),
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        code: code
+      })
     });
     
-    const responseData = await response.json();
+    const data = await response.json();
     
-    if (response.ok) {
-      console.log(`✅ Token enviado exitosamente al proxy`);
-      res.json({ success: true, message: 'Token enviado al proxy', proxyResponse: responseData });
+    if (data.access_token) {
+      console.log('========================================');
+      console.log('ACCESS TOKEN PERMANENTE:');
+      console.log(data.access_token);
+      console.log('========================================');
+      
+      // Enviar token al proxy
+      try {
+        const proxyResponse = await fetch(`${HOST}/api/shopify/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: shop,
+            accessToken: data.access_token,
+            scope: data.scope || 'read_products,write_products'
+          })
+        });
+        
+        if (proxyResponse.ok) {
+          console.log('✅ Token enviado al proxy exitosamente');
+        } else {
+          console.error('❌ Error al enviar token al proxy:', await proxyResponse.text());
+        }
+      } catch (error) {
+        console.error('❌ Error al enviar token al proxy:', error.message);
+      }
     } else {
-      console.error(`❌ Error del proxy: ${response.status}`, responseData);
-      res.status(500).json({ error: 'Error al enviar token al proxy', details: responseData });
+      console.error('Error:', data);
     }
+    
+    res.send('OK');
   } catch (error) {
-    console.error('❌ Error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error:', error);
+    res.status(500).send('Error');
   }
 });
 
-// Endpoint de salud
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', proxyUrl: PROXY_URL });
-});
-
 app.listen(PORT, () => {
-  console.log(`🚀 Token Sender corriendo en puerto ${PORT}`);
-  console.log(`📡 Proxy URL: ${PROXY_URL}`);
-  console.log(`📥 Endpoint: POST /receive-token`);
+  console.log(`Server running on port ${PORT}`);
 });
