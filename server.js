@@ -309,6 +309,41 @@ async function getLatestLogo() {
     }
 }
 
+// Función para convertir GID de Shopify a URL de imagen
+function convertShopifyGidToUrl(gid) {
+    if (!gid || !gid.includes('gid://')) {
+        return gid; // Si no es un GID, retornar tal cual
+    }
+    
+    // Extraer el ID del GID
+    // Formato: gid://shopify/MediaImage/123456789
+    const match = gid.match(/gid:\/\/shopify\/MediaImage\/(\d+)/);
+    if (!match) {
+        console.warn('⚠️ Formato de GID no reconocido:', gid);
+        return gid; // Retornar tal cual si no se puede convertir
+    }
+    
+    const imageId = match[1];
+    
+    // Construir URL de Shopify
+    // Necesitamos el shop domain, pero como no lo tenemos, retornamos el GID
+    // El cliente deberá proporcionar la URL completa o el shop domain
+    // Por ahora, retornamos el GID y el frontend deberá manejarlo
+    console.log('📋 GID de Shopify detectado:', gid);
+    console.log('💡 Para convertir a URL, se necesita el shop domain. Por ahora se usará el GID.');
+    
+    // Si el GID viene con shop domain en alguna variable de entorno, usarlo
+    const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+    if (shopDomain) {
+        // Construir URL de imagen de Shopify
+        // Formato: https://{shop}.myshopify.com/cdn/shop/files/{filename} o similar
+        // Pero necesitamos más información, así que por ahora retornamos el GID
+        return gid;
+    }
+    
+    return gid; // Retornar GID para que se maneje en el frontend o se use directamente
+}
+
 // Función para extraer información del cliente del prompt
 function extractClientInfoFromPrompt(prompt) {
     const info = {
@@ -732,7 +767,13 @@ app.post('/api/create-client', async (req, res) => {
                 console.log('ℹ️ No se encontró logo para este cliente');
             }
         } else {
-            console.log('🖼️ Logo recibido desde formulario:', logoUrl);
+            // Convertir GID de Shopify a URL si es necesario
+            if (logoUrl.includes('gid://')) {
+                logoUrl = convertShopifyGidToUrl(logoUrl);
+                console.log('🖼️ Logo GID procesado:', logoUrl);
+            } else {
+                console.log('🖼️ Logo recibido desde formulario:', logoUrl);
+            }
         }
         
         // Personalizar contenido con IA usando solo el prompt
@@ -970,6 +1011,11 @@ app.get('/api/client/:clientId', (req, res) => {
 // Endpoint de salud
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Panel de administración
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
 // Servir página por defecto (template)

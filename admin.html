@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración - Crear Cliente Personalizado</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #ff0000;
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .form-group {
+            margin-bottom: 30px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .logo-preview-container {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        
+        .logo-preview-container p {
+            margin: 0 0 10px 0;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .logo-preview-container img {
+            max-width: 200px;
+            max-height: 100px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .logo-preview-container .logo-url {
+            margin: 10px 0 0 0;
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+        
+        #logo-dropzone {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            background: #f9f9f9;
+            transition: all 0.3s;
+        }
+        
+        #logo-dropzone:hover {
+            border-color: #ff0000;
+            background: #fff5f5;
+        }
+        
+        #logo-file {
+            display: none;
+        }
+        
+        #logo-preview {
+            display: none;
+            margin-bottom: 15px;
+        }
+        
+        #logo-preview-img {
+            max-width: 200px;
+            max-height: 100px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .remove-logo-btn {
+            margin-top: 10px;
+            padding: 5px 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .remove-logo-btn:hover {
+            background: #c82333;
+        }
+        
+        #logo-gid-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        
+        #logo-gid-input:focus {
+            outline: none;
+            border-color: #ff0000;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #ff0000;
+        }
+        
+        small {
+            display: block;
+            margin-top: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        #submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        #submit-btn:hover:not(:disabled) {
+            background: #cc0000;
+        }
+        
+        #submit-btn:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+        
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        #result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        #result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        #result.processing {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+        
+        .url-container {
+            margin: 15px 0;
+        }
+        
+        .url-input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        
+        #client-url {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        
+        .copy-btn {
+            padding: 12px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .copy-btn:hover {
+            background: #218838;
+        }
+        
+        .view-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #155724;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Crear Página Personalizada con IA</h2>
+        
+        <form id="create-client-form">
+            <div class="form-group">
+                <label>🖼️ Logo (opcional):</label>
+                
+                <div id="logo-preview-container" style="display: none; margin-bottom: 15px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+                    <p>Logo desde GID:</p>
+                    <img id="logo-preview-from-gid" src="" alt="Logo" style="max-width: 200px; max-height: 100px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <p class="logo-url" id="logo-url-display"></p>
+                </div>
+                
+                <div class="form-group">
+                    <label style="font-size: 16px; margin-bottom: 8px;">GID de Shopify (pega el GID aquí):</label>
+                    <input 
+                        type="text" 
+                        id="logo-gid-input" 
+                        placeholder="gid://shopify/MediaImage/123456789"
+                    />
+                    <small>💡 Pega el GID de la imagen de Shopify. Se convertirá automáticamente a URL.</small>
+                </div>
+                
+                <div 
+                    id="logo-dropzone" 
+                    style="margin-top: 15px;"
+                >
+                    <input 
+                        type="file" 
+                        id="logo-file" 
+                        accept="image/*"
+                    />
+                    <div id="logo-preview" style="display: none; margin-bottom: 15px;">
+                        <img id="logo-preview-img" src="" alt="Logo preview">
+                        <br>
+                        <button type="button" class="remove-logo-btn" onclick="removeLogo()">
+                            ✕ Eliminar
+                        </button>
+                    </div>
+                </div>
+                <small>
+                    💡 El logo aparecerá arriba en la página personalizada. Puedes usar el GID de Shopify o subir una imagen.
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label>Prompt completo:</label>
+                <textarea 
+                    id="custom-prompt" 
+                    name="prompt" 
+                    rows="12" 
+                    required
+                    placeholder="Escribe aquí todo el prompt con la información del cliente. Ejemplo:
+
+Personaliza esta página para:
+- Cliente: Juan Pérez
+- Empresa: Tech Solutions S.L.
+- Objetivos: Aumentar ventas online en un 50%, mejorar experiencia de usuario
+- Alcance: Desarrollo completo de e-commerce con integración de pagos y gestión de inventario
+- Timeline: 3 meses
+- Equipo: 5 desarrolladores senior especializados en React y Node.js
+- Precio: €15,000
+
+Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El tono debe ser profesional pero cercano."
+                ></textarea>
+                <small>
+                    💡 Escribe toda la información del cliente y las instrucciones de personalización en un solo prompt
+                </small>
+            </div>
+            
+            <button 
+                type="submit" 
+                id="submit-btn"
+            >
+                Crear Página Personalizada
+            </button>
+            
+            <div id="result"></div>
+        </form>
+    </div>
+    
+    <script>
+        let logoFile = null;
+        let logoUrl = null;
+        const API_BASE_URL = 'https://reduncle-custom-lead.onrender.com';
+        
+        // Configurar dropzone
+        const dropzone = document.getElementById('logo-dropzone');
+        const fileInput = document.getElementById('logo-file');
+        const preview = document.getElementById('logo-preview');
+        const previewImg = document.getElementById('logo-preview-img');
+        const logoGidInput = document.getElementById('logo-gid-input');
+        const logoPreviewContainer = document.getElementById('logo-preview-container');
+        const logoPreviewFromGid = document.getElementById('logo-preview-from-gid');
+        const logoUrlDisplay = document.getElementById('logo-url-display');
+        
+        // Click en dropzone
+        dropzone.addEventListener('click', () => fileInput.click());
+        
+        // Cambio de archivo
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        // Arrastrar y soltar
+        dropzone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropzone.style.borderColor = '#ff0000';
+            dropzone.style.background = '#fff5f5';
+        });
+        
+        dropzone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropzone.style.borderColor = '#ddd';
+            dropzone.style.background = '#f9f9f9';
+        });
+        
+        dropzone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropzone.style.borderColor = '#ddd';
+            dropzone.style.background = '#f9f9f9';
+            
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        // Convertir GID a URL de Shopify
+        function gidToShopifyUrl(gid) {
+            if (!gid || !gid.includes('gid://')) {
+                return null;
+            }
+            
+            // Extraer el ID del GID
+            const match = gid.match(/gid:\/\/shopify\/MediaImage\/(\d+)/);
+            if (!match) {
+                return null;
+            }
+            
+            const imageId = match[1];
+            // Construir URL de Shopify (necesitarás el shop domain)
+            // Por ahora, retornamos el GID para que el servidor lo maneje
+            return gid;
+        }
+        
+        // Manejar cambio en el input de GID
+        logoGidInput.addEventListener('input', function(e) {
+            const gid = e.target.value.trim();
+            if (gid) {
+                // Mostrar preview (el servidor convertirá el GID a URL)
+                logoPreviewContainer.style.display = 'block';
+                logoUrlDisplay.textContent = `GID: ${gid}`;
+                // El servidor deberá convertir el GID a URL de imagen
+                logoUrl = gid;
+            } else {
+                logoPreviewContainer.style.display = 'none';
+                logoUrl = null;
+            }
+        });
+        
+        // Manejar archivo seleccionado
+        function handleFile(file) {
+            // Validar tipo
+            if (!file.type.startsWith('image/')) {
+                alert('Por favor, selecciona una imagen válida (JPG, PNG, SVG, WEBP)');
+                return;
+            }
+            
+            // Validar tamaño (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                alert('La imagen es demasiado grande. Máximo 5MB');
+                return;
+            }
+            
+            logoFile = file;
+            logoGidInput.value = ''; // Limpiar GID si se sube archivo
+            
+            // Mostrar preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Eliminar logo
+        function removeLogo() {
+            logoFile = null;
+            logoUrl = null;
+            fileInput.value = '';
+            logoGidInput.value = '';
+            preview.style.display = 'none';
+            logoPreviewContainer.style.display = 'none';
+        }
+        
+        // Subir logo al servidor
+        async function uploadLogo() {
+            if (!logoFile) return null;
+            
+            const formData = new FormData();
+            formData.append('logo', logoFile);
+            
+            try {
+                const uploadUrl = `${API_BASE_URL}/api/upload-logo`;
+                
+                console.log('📤 Subiendo logo a:', uploadUrl);
+                
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Error al subir el logo');
+                }
+                
+                const data = await response.json();
+                return {
+                    url: data.url,
+                    filename: data.filename
+                };
+            } catch (error) {
+                console.error('❌ Error al subir logo:', error);
+                alert('⚠️ No se pudo subir el logo. La página se creará sin logo.');
+                return null;
+            }
+        }
+        
+        document.getElementById('create-client-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            const resultDiv = document.getElementById('result');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Generando página... (puede tardar 5-15 min)';
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'processing';
+            resultDiv.innerHTML = `
+                <strong>⏳ Procesando...</strong><br>
+                <small>El servidor está generando tu página personalizada. Esto puede tardar entre 5-15 minutos en el plan gratuito de Render (cold start + procesamiento de IA).</small><br>
+                <small>💡 <strong>No cierres esta página.</strong> Revisa los logs de Render si quieres ver el progreso.</small>
+            `;
+            
+            const prompt = document.getElementById('custom-prompt').value.trim();
+            
+            if (!prompt) {
+                alert('Por favor, escribe un prompt con la información del cliente');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Crear Página Personalizada';
+                resultDiv.style.display = 'none';
+                return;
+            }
+            
+            // Obtener logo: primero del archivo subido, luego del GID
+            let finalLogoUrl = null;
+            if (logoFile) {
+                submitBtn.textContent = '⏳ Subiendo logo...';
+                try {
+                    const logoResult = await uploadLogo();
+                    if (logoResult && logoResult.url) {
+                        finalLogoUrl = logoResult.url;
+                        console.log('✅ Logo subido:', finalLogoUrl);
+                    }
+                } catch (error) {
+                    console.error('Error al subir logo:', error);
+                }
+            } else if (logoGidInput.value.trim()) {
+                // Usar GID de Shopify
+                finalLogoUrl = logoGidInput.value.trim();
+                console.log('✅ Usando GID de Shopify:', finalLogoUrl);
+            }
+            
+            submitBtn.textContent = '⏳ Generando página... (puede tardar 1-3 min)';
+            
+            const formData = {
+                prompt: prompt,
+                logoUrl: finalLogoUrl
+            };
+            
+            try {
+                console.log('🚀 Enviando request a:', `${API_BASE_URL}/api/create-client`);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1200000); // 20 minutos
+                
+                const response = await fetch(`${API_BASE_URL}/api/create-client`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                console.log('✅ Response recibida:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Error del servidor:', errorText);
+                    throw new Error(`Error del servidor (${response.status}): ${errorText}`);
+                }
+                
+                let data;
+                try {
+                    const responseText = await response.text();
+                    console.log('📄 Response text recibido:', responseText.substring(0, 200));
+                    data = JSON.parse(responseText);
+                } catch (jsonError) {
+                    console.error('❌ Error al parsear JSON:', jsonError);
+                    throw new Error('Error al procesar la respuesta del servidor. La página puede haberse creado correctamente. Revisa los logs de Render.');
+                }
+                
+                console.log('✅ Datos recibidos:', data);
+                
+                if (data.success) {
+                    resultDiv.className = 'success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ ¡Página creada exitosamente!</strong><br><br>
+                        <div class="url-container">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔗 URL Personalizada:</label>
+                            <div class="url-input-group">
+                                <input 
+                                    type="text" 
+                                    id="client-url" 
+                                    value="${data.url}" 
+                                    readonly
+                                />
+                                <button 
+                                    type="button" 
+                                    class="copy-btn"
+                                    onclick="copyUrl()"
+                                >
+                                    📋 Copiar
+                                </button>
+                            </div>
+                            <small>Click en "Copiar" para copiar la URL al portapapeles</small>
+                        </div>
+                        <div>
+                            <a href="${data.url}" target="_blank" class="view-link">
+                                👁️ Ver página personalizada →
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+            } catch (error) {
+                console.error('❌ Error completo:', error);
+                resultDiv.className = 'error';
+                
+                let errorMessage = error.message;
+                if (error.name === 'AbortError') {
+                    errorMessage = '⏱️ La solicitud tardó demasiado (más de 20 minutos). El servidor puede estar procesando. Revisa los logs de Render para ver si se creó el cliente.';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage = '🌐 Error de conexión. El servidor puede estar iniciando (cold start ~50 segundos). Intenta de nuevo en unos segundos.';
+                } else if (error.message.includes('JSON')) {
+                    errorMessage = '⚠️ Error al procesar la respuesta del servidor. La página puede haberse creado correctamente. Revisa los logs de Render.';
+                }
+                
+                resultDiv.innerHTML = `
+                    <strong>❌ Error:</strong> ${errorMessage}<br><br>
+                    <small>💡 Tip: En el plan gratuito de Render, el servidor puede tardar ~50 segundos en iniciar si estaba inactivo.</small>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Crear Página Personalizada';
+            }
+        });
+        
+        function copyUrl() {
+            const urlInput = document.getElementById('client-url');
+            if (urlInput) {
+                urlInput.select();
+                urlInput.setSelectionRange(0, 99999);
+                document.execCommand('copy');
+                
+                const copyBtn = event.target;
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ Copiado!';
+                copyBtn.style.background = '#155724';
+                
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.background = '#28a745';
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
