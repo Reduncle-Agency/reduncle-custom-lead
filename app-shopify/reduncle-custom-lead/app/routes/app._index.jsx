@@ -8,7 +8,37 @@ export const loader = async ({ request }) => {
   
   const PROXY_URL = process.env.PROXY_URL || "https://reduncle-custom-lead.onrender.com";
   
-  // Obtener token del proxy
+  // Si tenemos sesión pero no hay token en el proxy, enviarlo ahora
+  if (session?.shop && session?.accessToken) {
+    try {
+      // Intentar obtener token del proxy primero
+      const getResponse = await fetch(`${PROXY_URL}/api/shopify/token/${session.shop}`);
+      
+      if (!getResponse.ok) {
+        // Si no existe, enviarlo ahora
+        console.log(`📤 Enviando token al proxy para ${session.shop}...`);
+        const postResponse = await fetch(`${PROXY_URL}/api/shopify/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            shop: session.shop,
+            accessToken: session.accessToken,
+            scope: session.scope || "",
+          }),
+        });
+        
+        if (postResponse.ok) {
+          console.log(`✅ Token enviado al proxy para ${session.shop}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error al enviar/obtener token:", error);
+    }
+  }
+  
+  // Obtener token del proxy para mostrarlo
   let tokenData = null;
   if (session?.shop) {
     try {
@@ -25,11 +55,12 @@ export const loader = async ({ request }) => {
     shop: session?.shop || null,
     tokenData,
     PROXY_URL,
+    currentAccessToken: session?.accessToken || null, // Token actual de la sesión
   };
 };
 
 export default function Index() {
-  const { shop, tokenData, PROXY_URL } = useLoaderData();
+  const { shop, tokenData, PROXY_URL, currentAccessToken } = useLoaderData();
   const [copied, setCopied] = useState(false);
 
   const copyToken = () => {
@@ -54,7 +85,7 @@ export default function Index() {
             </s-box>
             <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
               <s-stack direction="block" gap="tight">
-                <s-text variant="headingMd">Access Token:</s-text>
+                <s-text variant="headingMd">Access Token (guardado en proxy):</s-text>
                 <s-box padding="base" background="base" borderRadius="base">
                   <s-text variant="bodyMd" fontFamily="mono">
                     {tokenData.accessToken}
@@ -63,6 +94,27 @@ export default function Index() {
                 <s-button onClick={copyToken} variant="secondary">
                   {copied ? "✅ Copiado!" : "📋 Copiar Token"}
                 </s-button>
+              </s-stack>
+            </s-box>
+          </s-stack>
+        ) : currentAccessToken ? (
+          <s-stack direction="block" gap="base">
+            <s-box padding="base" borderWidth="base" borderRadius="base" background="warning">
+              <s-text variant="bodyMd">
+              ⚠️ Token no encontrado en proxy, pero tenemos token de sesión actual. Se está enviando automáticamente...
+              </s-text>
+            </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+              <s-stack direction="block" gap="tight">
+                <s-text variant="headingMd">Token de Sesión Actual:</s-text>
+                <s-box padding="base" background="base" borderRadius="base">
+                  <s-text variant="bodyMd" fontFamily="mono">
+                    {currentAccessToken}
+                  </s-text>
+                </s-box>
+                <s-text variant="bodyMd" tone="subdued">
+                  💡 Este token se está enviando al proxy automáticamente. Recarga la página en unos segundos.
+                </s-text>
               </s-stack>
             </s-box>
           </s-stack>
