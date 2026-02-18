@@ -25,11 +25,27 @@ const shopify = shopifyApp({
   hooks: {
     afterAuth: async ({ session }) => {
       // Este hook se ejecuta cuando se instala la app
+      console.log(`🚀 afterAuth hook ejecutado para shop: ${session?.shop}`);
+      console.log(`🔑 AccessToken presente: ${session?.accessToken ? 'SÍ' : 'NO'}`);
+      
+      if (!session?.shop || !session?.accessToken) {
+        console.error(`❌ afterAuth: Sesión incompleta. Shop: ${session?.shop}, AccessToken: ${session?.accessToken ? 'presente' : 'ausente'}`);
+        return;
+      }
+      
       // Enviar el token permanente al proxy
       const PROXY_URL = process.env.PROXY_URL || "https://reduncle-custom-lead.onrender.com";
+      const tokenEndpoint = `${PROXY_URL}/api/shopify/token`;
+      
+      console.log(`📤 Enviando token al proxy: ${tokenEndpoint}`);
+      console.log(`📝 Shop: ${session.shop}`);
+      console.log(`📝 Token (primeros 20 chars): ${session.accessToken.substring(0, 20)}...`);
       
       try {
-        const response = await fetch(`${PROXY_URL}/api/shopify/token`, {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+        
+        const response = await fetch(tokenEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -39,15 +55,28 @@ const shopify = shopifyApp({
             accessToken: session.accessToken,
             scope: session.scope || "",
           }),
+          signal: controller.signal,
         });
 
+        clearTimeout(timeoutId);
+        
+        const responseText = await response.text();
+        console.log(`📥 Respuesta del proxy: Status ${response.status}, Body: ${responseText}`);
+        
         if (response.ok) {
-          console.log(`✅ Token enviado al proxy para ${session.shop}`);
+          console.log(`✅ Token enviado exitosamente al proxy para ${session.shop}`);
         } else {
-          console.error(`❌ Error al enviar token al proxy: ${response.statusText}`);
+          console.error(`❌ Error al enviar token al proxy: ${response.status} ${response.statusText}`);
+          console.error(`❌ Respuesta: ${responseText}`);
         }
       } catch (error) {
-        console.error(`❌ Error al enviar token al proxy:`, error);
+        if (error.name === 'AbortError') {
+          console.error(`❌ Timeout al enviar token al proxy (10 segundos)`);
+        } else {
+          console.error(`❌ Error al enviar token al proxy:`, error);
+          console.error(`❌ Stack:`, error.stack);
+          console.error(`❌ Message:`, error.message);
+        }
       }
     },
   },
