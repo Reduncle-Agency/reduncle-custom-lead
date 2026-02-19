@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador 3D</title>
+</head>
+<body style="margin: 0; padding: 0; overflow: hidden; -ms-overflow-style: none; scrollbar-width: none;">
+    <div id="main-container" style="width: 100vw; height: 100vh; position: relative; overflow-x: hidden; overflow-y: auto; background: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1a1a1a; margin: 0; padding: 0; box-sizing: border-box;" onscroll="onPageScroll()">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow-x: hidden;
+                overflow-y: hidden;
+                -ms-overflow-style: none;  /* IE y Edge */
+                scrollbar-width: none;  /* Firefox */
+            }
+            
+            html::-webkit-scrollbar,
+            body::-webkit-scrollbar {
+                display: none;  /* Chrome, Safari, Opera */
+                width: 0;
+                height: 0;
+            }
+
+            #main-container {
+                width: 100vw;
+                height: 100vh;
+                position: relative;
+                overflow-x: hidden;
+                overflow-y: auto;
+                background: #ffffff;
+                font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                color: #1a1a1a;
+                transition: background 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                letter-spacing: -0.01em;
+                -ms-overflow-style: none !important;
+                scrollbar-width: none !important;
+            }
+            
+            #main-container::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+                background: transparent !important;
+            }
+            
+            #main-container::-webkit-scrollbar-track,
+            #main-container::-webkit-scrollbar-thumb {
+                display: none !important;
+                background: transparent !important;
+            }
+
+            #canvas-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 1;
+                pointer-events: none;
+            }
+
+            #canvas-container canvas {
+                pointer-events: auto;
+            }
+
+            #logo-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                z-index: 100;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+                pointer-events: none;
+                transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            #logo-img {
+                max-width: 200px;
+                max-height: 80px;
+                width: auto;
+                height: auto;
+                object-fit: contain;
+                pointer-events: none;
+            }
+
+            @media (max-width: 768px) {
+                #logo-container {
+                    padding: 15px;
+                }
+                #logo-img {
+                    max-width: 150px;
+                    max-height: 60px;
+                }
+            }
+
+            #content {
+                position: relative;
+                z-index: 10;
+                min-height: 100vh;
+                padding: 120px 60px;
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+
+            .section {
+                background: rgba(255, 255, 255, 0.7);
+                backdrop-filter: blur(20px) saturate(180%);
+                -webkit-backdrop-filter: blur(20px) saturate(180%);
+                border-radius: 24px;
+                padding: 60px;
+                margin-bottom: 120px;
+                border: 1px solid rgba(0, 0, 0, 0.08);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
+                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .section:last-of-type {
+                margin-bottom: 200px; /* Más espacio al final para ver el coche */
+            }
+            
+            .section::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
+            }
+            
+            .circuit-track {
+                position: relative;
+                margin: 40px 0;
+                padding-left: 60px;
+            }
+            
+            .circuit-line {
+                position: absolute;
+                left: 20px;
+                top: 0;
+                bottom: 0;
+                width: 3px;
+                background: rgba(0, 0, 0, 0.1);
+                border-radius: 2px;
+            }
+            
+            .circuit-line-fill {
+                position: absolute;
+                left: 20px;
+                top: 0;
+                width: 3px;
+                background: linear-gradient(180deg, #ff0000 0%, #cc0000 100%);
+                border-radius: 2px;
+                height: 0%;
+                transition: height 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                box-shadow: 0 0 12px rgba(255, 0, 0, 0.4);
+            }
+            
+            .circuit-node {
+                position: absolute;
+                left: 8px;
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: #ffffff;
+                border: 3px solid rgba(0, 0, 0, 0.1);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 2;
+            }
+            
+            .circuit-node.active {
+                background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+                border-color: #ff0000;
+                box-shadow: 0 0 20px rgba(255, 0, 0, 0.5), 0 4px 12px rgba(255, 0, 0, 0.3);
+                transform: scale(1.15);
+            }
+            
+            .circuit-node.completed {
+                background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+                border-color: #ff0000;
+                box-shadow: 0 0 16px rgba(255, 0, 0, 0.4);
+            }
+            
+            .circuit-step {
+                position: relative;
+                padding: 24px 0 24px 50px;
+                min-height: 80px;
+            }
+            
+            .circuit-step-content {
+                position: relative;
+                z-index: 1;
+            }
+            
+            .circuit-step-title {
+                font-size: 22px;
+                font-weight: 700;
+                color: #1a1a1a;
+                margin-bottom: 8px;
+                transition: color 0.4s ease;
+            }
+            
+            .circuit-step.active .circuit-step-title {
+                color: #ff0000;
+            }
+            
+            .circuit-step-description {
+                font-size: 17px;
+                color: #666;
+                line-height: 1.6;
+                transition: color 0.4s ease;
+            }
+            
+            .circuit-step.active .circuit-step-description {
+                color: #1a1a1a;
+            }
+
+            h1 {
+                font-size: 64px;
+                margin-bottom: 24px;
+                background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                font-weight: 800;
+                letter-spacing: -0.03em;
+                line-height: 1.1;
+            }
+
+            h2 {
+                font-size: 42px;
+                margin-bottom: 32px;
+                color: #ff0000;
+                transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                font-weight: 700;
+                letter-spacing: -0.02em;
+                line-height: 1.2;
+            }
+
+            h3 {
+                font-size: 28px;
+                margin-bottom: 20px;
+                color: #000000;
+                font-weight: 700;
+                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                letter-spacing: -0.01em;
+                line-height: 1.3;
+            }
+
+            p, li {
+                font-size: 19px;
+                line-height: 1.75;
+                margin-bottom: 20px;
+                color: #1a1a1a;
+                font-weight: 400;
+                transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                letter-spacing: -0.005em;
+            }
+
+            ul {
+                list-style: none;
+                padding-left: 0;
+            }
+
+            li {
+                padding-left: 30px;
+                position: relative;
+            }
+
+            li:before {
+                content: "→";
+                position: absolute;
+                left: 0;
+                color: #ff0000;
+                font-weight: 700;
+                font-size: 20px;
+                top: 2px;
+            }
+
+            .highlight {
+                color: #ff0000;
+                font-weight: bold;
+            }
+
+            .price-box {
+                background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+                padding: 48px;
+                border-radius: 20px;
+                text-align: center;
+                margin-top: 32px;
+                box-shadow: 0 12px 40px rgba(255, 0, 0, 0.25), 0 4px 12px rgba(255, 0, 0, 0.15);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .price-box::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+                animation: shimmer 3s ease-in-out infinite;
+            }
+            
+            @keyframes shimmer {
+                0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+                50% { transform: translate(-50%, -50%) rotate(180deg); }
+            }
+
+            .price-box h3 {
+                font-size: 36px;
+                margin-bottom: 10px;
+            }
+
+            .circuit-track {
+                position: relative;
+                margin: 50px 0;
+                padding-left: 60px;
+            }
+            
+            .circuit-line {
+                position: absolute;
+                left: 20px;
+                top: 0;
+                bottom: 0;
+                width: 3px;
+                background: rgba(0, 0, 0, 0.1);
+                border-radius: 2px;
+            }
+            
+            .circuit-line-fill {
+                position: absolute;
+                left: 20px;
+                top: 0;
+                width: 3px;
+                background: linear-gradient(180deg, #ff0000 0%, #cc0000 100%);
+                border-radius: 2px;
+                height: 0%;
+                transition: height 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                box-shadow: 0 0 12px rgba(255, 0, 0, 0.4);
+            }
+            
+            .circuit-node {
+                position: absolute;
+                left: 8px;
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: #ffffff;
+                border: 3px solid rgba(0, 0, 0, 0.1);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 2;
+            }
+            
+            .circuit-node.active {
+                background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+                border-color: #ff0000;
+                box-shadow: 0 0 20px rgba(255, 0, 0, 0.5), 0 4px 12px rgba(255, 0, 0, 0.3);
+                transform: scale(1.15);
+            }
+            
+            .circuit-node.completed {
+                background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+                border-color: #ff0000;
+                box-shadow: 0 0 16px rgba(255, 0, 0, 0.4);
+            }
+            
+            .circuit-step {
+                position: relative;
+                padding: 28px 0 28px 50px;
+                min-height: 90px;
+            }
+            
+            .circuit-step-content {
+                position: relative;
+                z-index: 1;
+            }
+            
+            .circuit-step-title {
+                font-size: 22px;
+                font-weight: 700;
+                color: #1a1a1a;
+                margin-bottom: 10px;
+                transition: color 0.4s ease;
+            }
+            
+            .circuit-step.active .circuit-step-title {
+                color: #ff0000;
+            }
+            
+            .circuit-step.completed .circuit-step-title {
+                color: #ff0000;
+                opacity: 0.8;
+            }
+            
+            .circuit-step-description {
+                font-size: 17px;
+                color: #333;
+                line-height: 1.6;
+                transition: color 0.4s ease;
+                font-weight: 400;
+            }
+            
+            .circuit-step.active .circuit-step-description {
+                color: #000;
+                font-weight: 500;
+            }
+            
+            .circuit-step.completed .circuit-step-description {
+                color: #1a1a1a;
+                font-weight: 400;
+            }
+
+            #instructions {
+                position: fixed;
+                bottom: 32px;
+                right: 32px;
+                color: rgba(0, 0, 0, 0.7);
+                text-align: right;
+                font-size: 13px;
+                z-index: 100;
+                background: rgba(255, 255, 255, 0.85);
+                backdrop-filter: blur(12px) saturate(180%);
+                -webkit-backdrop-filter: blur(12px) saturate(180%);
+                padding: 14px 20px;
+                border-radius: 12px;
+                border: 1px solid rgba(0, 0, 0, 0.08);
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                font-weight: 500;
+                letter-spacing: 0.01em;
+            }
+
+            @media (max-width: 768px) {
+                #content {
+                    padding: 60px 20px;
+                }
+
+                h1 {
+                    font-size: 42px;
+                    margin-bottom: 24px;
+                }
+
+                h2 {
+                    font-size: 32px;
+                    margin-bottom: 24px;
+                }
+                
+                h3 {
+                    font-size: 24px;
+                    margin-bottom: 20px;
+                }
+                
+                .section {
+                    padding: 40px 24px;
+                    margin-bottom: 100px; /* Más espacio en móvil para ver el coche */
+                }
+                
+                .section:last-of-type {
+                    margin-top: 100px !important; /* Más espacio antes de Contacto en móvil */
+                    margin-bottom: 300px !important; /* Aún más espacio al final en móvil */
+                }
+                
+                p, li {
+                    font-size: 17px;
+                    line-height: 1.7;
+                    margin-bottom: 16px;
+                }
+                
+                /* Ajustes específicos para el circuito en móvil */
+                .circuit-track {
+                    margin: 40px 0;
+                    padding-left: 50px;
+                }
+                
+                .circuit-step {
+                    padding: 32px 0 32px 40px;
+                    min-height: 100px;
+                }
+                
+                .circuit-step-title {
+                    font-size: 20px;
+                    margin-bottom: 12px;
+                    line-height: 1.3;
+                }
+                
+                .circuit-step-description {
+                    font-size: 16px;
+                    line-height: 1.6;
+                    padding-right: 10px;
+                }
+                
+                .circuit-node {
+                    width: 32px;
+                    height: 32px;
+                    left: 4px;
+                }
+                
+                .circuit-line {
+                    left: 18px;
+                    width: 4px;
+                }
+                
+                .circuit-line-fill {
+                    left: 18px;
+                    width: 4px;
+                }
+                
+                /* Más espacio entre elementos de lista */
+                ul {
+                    padding-left: 0;
+                }
+                
+                li {
+                    margin-bottom: 16px;
+                    padding-left: 32px;
+                }
+            }
+        </style>
+
+    <div id="canvas-container"></div>
+        <!-- <div id="instructions">Haz scroll para controlar la velocidad</div> -->
+        
+        <!-- Logo arriba -->
+        <div id="logo-container">
+            <img id="logo-img" src="https://github.com/Reduncle-Agency/reduncle-custom-lead/raw/main/public/uploads/e1b0dac7-44dd-4f39-97bf-7ccf1c24f909-1771508399529-imgi_1_52_x_52_pix_LOGO_definitivo_ARTCUADROS%20(2).jpg" alt="Logo" style="display: block;">
+        </div>
+
+        <div id="content">
+            <div class="section">
+                <h1 id="project-title">Nuestro Proyecto</h1>
+                <div id="client-info-in-section" style="margin: 30px 0; padding: 30px; background: rgba(255, 255, 255, 0.5); border-radius: 12px; border: 2px solid rgba(255, 0, 0, 0.2);">
+                    <div id="client-name-section" style="display: block; margin-bottom: 16px;">
+                        <p style="font-size: 32px; font-weight: 800; color: #ff0000; margin-bottom: 8px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);" id="client-name-text">ArtCuadros Premium</p>
+                    </div>
+                    <div id="client-company-section" style="display: block; margin-bottom: 16px;">
+                        <p style="font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;" id="client-company-text">ArtCuadros Studio S.L.</p>
+                    </div>
+                    <div id="client-objetivos-section" style="display: block; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">🎯 Objetivos:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-objetivos-text">Aumentar las ventas online en un 55% en los próximos 6 meses
+
+Incrementar el ticket medio en un 30% mediante estrategias de cross-selling y upselling
+
+Mejorar la experiencia de usuario con una interfaz visual premium, minimalista y orientada a conversión
+
+Implementar un sistema de recomendaciones basado en IA (obras similares por</p>
+                    </div>
+                    <div id="client-alcance-section" style="display: block; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">📋 Alcance:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-alcance-text">Desarrollo completo de plataforma e-commerce con React, Node.js y arquitectura escalable en la nube (AWS)
+
+Diseño UX/UI enfocado en destacar el valor artístico y la exclusividad de cada obra
+
+Integración de pasarelas de pago (Stripe, PayPal, Apple Pay, Google Pay)
+
+Implementación de pago fraccionado (Klarna / Aplazame)
+
+Sistema de gestión de inventario en tiempo real (control de piezas únicas y ediciones limitadas)
+
+Panel de administración completo para gestión de productos, pedidos y colecciones
+
+Sistema avanzado de variantes (tamaño, marco, acabados)
+
+Integración con sistemas de logística y envío (Correos Express, DHL, UPS)
+
+Automatización de cálculo de costes de envío internacional
+
+Implementación de SEO avanzado técnico + estructura optimizada para posicionamiento orgánico
+
+Implementación de marketing automation (email marketing, recuperación de carrito, segmentación por comportamiento)
+
+Integración con Meta Ads y Google Ads para remarketing dinámico
+
+Optimización avanzada de rendimiento (Core Web Vitals, carga diferida de imágenes en alta resolución)
+
+Configuración de sistema de analítica avanzada (Google Analytics 4 + eventos personalizados)</p>
+                    </div>
+                    <div id="client-timeline-section" style="display: block; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">⏱️ Timeline:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-timeline-text">Fase 1 (Mes 1): Diseño UX/UI y arquitectura técnica
+
+Análisis de marca y posicionamiento
+
+Definición de buyer persona
+
+Wireframes y prototipo interactivo
+
+Diseño visual premium adaptado a identidad artística
+
+Arquitectura técnica y base de datos
+
+Fase 2 (Mes 2): Desarrollo frontend y backend
+
+Desarrollo completo frontend con enfoque visual premium
+
+Desarrollo backend y API REST
+
+Implementación sistema de recomendaciones IA
+
+Integración de pagos y logística
+
+Desarrollo panel administrativo personalizado
+
+Fase 3 (Semana 7-8): Integraciones, pruebas y optimización
+
+Testing completo (QA)
+
+Pruebas de carga y rendimiento
+
+Optimización SEO técnica
+
+Configuración de automatizaciones
+
+Ajustes finales UX
+
+Entrega final:
+
+Final del Mes 2 con soporte post-entrega de 2 meses (optimización continua, mejoras de conversión y mantenimiento técnico).</p>
+                    </div>
+                    <div id="client-equipo-section" style="display: block; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">👥 Equipo:</p>
+                        <p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-equipo-text">4 desarrolladores senior especializados en React, Node.js, arquitectura cloud y optimización de rendimiento
+
+2 diseñadores UX/UI especializados en e-commerce premium y marcas visuales
+
+1 Project Manager dedicado a coordinación estratégica
+
+1 QA Engineer especializado en testing funcional y pruebas de rendimiento
+
+1 especialista en SEO y CRO (optimización de conversión)</p>
+                    </div>
+                    <div id="client-precio-section" style="display: none; margin-bottom: 16px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">💰 Precio: €22.000</p>
+                        <p style="font-size: 20px; font-weight: 700; color: #ff0000; line-height: 1.7; margin-left: 20px;" id="client-precio-text"></p>
+                    </div>
+                    <div id="client-details-section" style="display: none; margin-bottom: 20px;">
+                        <p style="font-size: 17px; color: #666; line-height: 1.6;" id="client-details-text"></p>
+                    </div>
+                </div>
+                <p id="project-description">Bienvenido a nuestra propuesta de proyecto. Explora los detalles a continuación.</p>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Objetivos</h2>
+                <ul>
+                    <li>Desarrollar una solución innovadora que cumpla con los más altos estándares de calidad</li>
+                    <li>Entregar resultados que superen las expectativas del cliente</li>
+                    <li>Establecer una base sólida para futuras colaboraciones</li>
+                    <li>Implementar las mejores prácticas de la industria</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>📋 Alcance del Proyecto</h2>
+                <p>El alcance incluye:</p>
+                
+                <div class="circuit-track">
+                    <div class="circuit-line"></div>
+                    <div class="circuit-line-fill" id="circuit-fill"></div>
+                    
+                    <div class="circuit-step" data-step="1">
+                        <div class="circuit-node" id="node-1"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Fase 1: Análisis y Planificación</div>
+                            <div class="circuit-step-description">Análisis exhaustivo de requisitos, planificación detallada y diseño de arquitectura</div>
+                        </div>
+                    </div>
+                    
+                    <div class="circuit-step" data-step="2">
+                        <div class="circuit-node" id="node-2"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Fase 2: Desarrollo e Implementación</div>
+                            <div class="circuit-step-description">Desarrollo principal del proyecto siguiendo las mejores prácticas y metodologías ágiles</div>
+                        </div>
+                    </div>
+                    
+                    <div class="circuit-step" data-step="3">
+                        <div class="circuit-node" id="node-3"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Fase 3: Pruebas y Optimización</div>
+                            <div class="circuit-step-description">Testing exhaustivo, optimización de rendimiento y refinamiento de funcionalidades</div>
+                        </div>
+                    </div>
+                    
+                    <div class="circuit-step" data-step="4">
+                        <div class="circuit-node" id="node-4"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Fase 4: Entrega y Documentación</div>
+                            <div class="circuit-step-description">Entrega final del proyecto con documentación completa y capacitación del equipo</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <p style="margin-top: 40px;">Incluye soporte post-entrega durante el primer mes.</p>
+            </div>
+
+            <div class="section">
+                <h2>📅 Timeline y Planificación</h2>
+                <h3>Planificación a 3 meses</h3>
+                
+                <div class="circuit-track">
+                    <div class="circuit-line"></div>
+                    <div class="circuit-line-fill" id="timeline-fill"></div>
+                    
+                    <div class="circuit-step" data-step="1">
+                        <div class="circuit-node" id="timeline-node-1"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Mes 1: Análisis y Diseño</div>
+                            <div class="circuit-step-description">Análisis exhaustivo, diseño detallado y planificación estratégica del proyecto</div>
+                        </div>
+                    </div>
+                    
+                    <div class="circuit-step" data-step="2">
+                        <div class="circuit-node" id="timeline-node-2"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Mes 2: Desarrollo Principal</div>
+                            <div class="circuit-step-description">Desarrollo activo del proyecto con iteraciones y revisiones continuas</div>
+                        </div>
+                    </div>
+                    
+                    <div class="circuit-step" data-step="3">
+                        <div class="circuit-node" id="timeline-node-3"></div>
+                        <div class="circuit-step-content">
+                            <div class="circuit-step-title">Mes 3: Refinamiento y Entrega</div>
+                            <div class="circuit-step-description">Pruebas finales, optimización y entrega completa del proyecto</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <p style="margin-top: 40px;">Cada fase incluye entregables específicos y revisiones periódicas para asegurar que el proyecto avance según lo planificado.</p>
+            </div>
+
+            <div class="section">
+                <h2>👥 Con Quien Trabajamos</h2>
+                <h3>Autoridad y Experiencia</h3>
+                <p>Nuestro equipo está compuesto por profesionales altamente cualificados con años de experiencia en la industria:</p>
+                <ul>
+                    <li>Especialistas en desarrollo con certificaciones reconocidas</li>
+                    <li>Equipo de diseño con portfolio de proyectos exitosos</li>
+                    <li>Consultores estratégicos con experiencia en múltiples sectores</li>
+                    <li>Soporte técnico disponible durante todo el proyecto</li>
+                </ul>
+                <p>Trabajamos con metodologías ágiles y mantenemos comunicación constante con nuestros clientes.</p>
+            </div>
+
+            <div class="section">
+                <h2>💰 Inversión</h2>
+                <div class="price-box">
+                    <h3>Precio del Proyecto: €22.000</h3>
+                    <p style="font-size: 24px; margin-top: 10px;">Personalizado según necesidades</p>
+                    <p style="margin-top: 20px; font-size: 16px;">Contacta con nosotros para una cotización detallada</p>
+                </div>
+                <p style="margin-top: 20px;">La inversión incluye:</p>
+                <ul>
+                    <li>Todo el desarrollo y entrega del proyecto</li>
+                    <li>Soporte técnico durante 1 mes post-entrega</li>
+                    <li>Documentación completa</li>
+                    <li>Capacitación del equipo si es necesario</li>
+                </ul>
+            </div>
+
+            <div class="section" style="margin-bottom: 600px !important;">
+                <h2>📞 Contacto</h2>
+                <p>¿Tienes preguntas o quieres discutir los detalles del proyecto?</p>
+                <p>Estamos aquí para ayudarte a hacer realidad tu visión.</p>
+            </div>
+        </div>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+                }
+            }
+        </script>
+        <script type="module">
+            import * as THREE from 'three';
+            import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+            // Variables globales
+            let scene, camera, renderer, car, carGroup;
+            // Ángulo inicial: un poco más atrás en móvil para mejor visibilidad
+            const isMobile = window.innerWidth <= 768;
+            let angle = isMobile ? Math.PI * 2.45 : Math.PI * 2.3; // Móvil: 441° (un poco más atrás), Desktop: 414°
+            let rotationSpeed = 0; // Velocidad de rotación (controlada por scroll)
+            let radius = 6; // Radio del círculo (más grande)
+            const friction = 0.95; // Fricción (0.95 = frena gradualmente, más bajo = frena más rápido)
+            const minSpeed = 0.001; // Velocidad mínima antes de detenerse completamente
+            let sparkParticles = []; // Array para las partículas de chispas
+            let sparkSystem = null; // Sistema de partículas de chispas
+            let scrollProgress = 0; // Progreso del scroll para animación
+
+            // Inicializar la escena
+            function init() {
+                // Crear escena con fondo transparente
+                scene = new THREE.Scene();
+                scene.background = null; // Sin fondo
+
+                // Crear cámara
+                const container = document.getElementById('canvas-container');
+                if (!container) {
+                    console.error('Container no encontrado');
+                    return;
+                }
+                
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                
+                camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
+                camera.position.set(0, 1.2, 22); // Posición normal de cámara
+                camera.lookAt(0, 0, 0);
+                
+                // Crear un grupo para el coche (para facilitar el movimiento)
+                carGroup = new THREE.Group();
+                scene.add(carGroup);
+
+                // Crear renderer con transparencia
+                renderer = new THREE.WebGLRenderer({ 
+                    antialias: true, 
+                    alpha: true,
+                    powerPreference: "high-performance"
+                });
+                renderer.setSize(width, height);
+                renderer.setClearColor(0x000000, 0); // Fondo transparente
+                renderer.shadowMap.enabled = false; // Sin sombras para mejor rendimiento
+                container.appendChild(renderer.domElement);
+
+                // Agregar luces para iluminar solo el coche
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                scene.add(ambientLight);
+
+                const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight1.position.set(5, 10, 5);
+                scene.add(directionalLight1);
+
+                const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight2.position.set(-5, 5, -5);
+                scene.add(directionalLight2);
+
+                // Luz puntual para mejor iluminación
+                const pointLight = new THREE.PointLight(0xffffff, 0.6);
+                pointLight.position.set(0, 5, 0);
+                scene.add(pointLight);
+
+                // Crear sistema de partículas para chispas
+                createSparkSystem();
+
+                // Cargar el modelo del coche desde CDN de Shopify
+                const loader = new GLTFLoader();
+                loader.load(
+                    'https://cdn.shopify.com/3d/models/0a1c5e3c0fb6a380/Meshy_AI_Red_Formula_1_0217154143_texture.glb',
+                    function(gltf) {
+                        car = gltf.scene;
+                        
+                        // Calcular el centro del modelo
+                        const box = new THREE.Box3().setFromObject(car);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        
+                        // Centrar el modelo
+                        car.position.x = -center.x;
+                        car.position.y = -center.y;
+                        car.position.z = -center.z;
+                        
+                        // Escalar el coche más grande
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const scale = 10 / maxDim; // Mucho más grande (era 5, ahora 8)
+                        car.scale.multiplyScalar(scale);
+                        
+                        // Desactivar sombras para mejor rendimiento
+                        car.traverse(function(child) {
+                            if (child.isMesh) {
+                                child.castShadow = false;
+                                child.receiveShadow = false;
+                            }
+                        });
+                        
+                        // Agregar el coche al grupo
+                        carGroup.add(car);
+                        
+                        // Posicionar el coche inmediatamente en la posición inicial (más atrás)
+                        const x = Math.cos(angle) * radius;
+                        const z = Math.sin(angle) * radius;
+                        carGroup.position.x = x;
+                        carGroup.position.z = z;
+                        carGroup.position.y = 0;
+                        
+                        // Orientar el coche correctamente desde el inicio
+                        const tangentX = -Math.sin(angle);
+                        const tangentZ = Math.cos(angle);
+                        const lookX = x + tangentX;
+                        const lookZ = z + tangentZ;
+                        car.lookAt(lookX, 0, lookZ);
+                        car.rotateY(Math.PI / 2);
+                    },
+                    function(progress) {
+                        console.log('Progreso de carga:', (progress.loaded / progress.total * 100) + '%');
+                    },
+                    function(error) {
+                        console.error('Error al cargar el modelo:', error);
+                    }
+                );
+
+                // Event listener para el scroll del coche
+                window.addEventListener('wheel', onScroll, { passive: true });
+                
+                // Eventos táctiles para móvil
+                window.addEventListener('touchstart', onTouchStart, { passive: true });
+                window.addEventListener('touchmove', onTouchMove, { passive: false });
+                window.addEventListener('touchend', onTouchEnd, { passive: true });
+                
+                // Event listener para el scroll de la página (en el contenedor)
+                const mainContainer = document.getElementById('main-container');
+                if (mainContainer) {
+                    mainContainer.addEventListener('scroll', onPageScroll, { passive: true });
+                }
+                // También en window por si acaso
+                window.addEventListener('scroll', onPageScroll, { passive: true });
+                
+                // Ajustar tamaño al redimensionar ventana
+                window.addEventListener('resize', onWindowResize);
+                
+                // Iniciar animación
+                animate();
+            }
+
+            // Manejar el scroll de la página para animación
+            function onPageScroll() {
+                const mainContainer = document.getElementById('main-container');
+                if (!mainContainer) return;
+                
+                // Obtener scroll del contenedor principal (no de window)
+                const scrollTop = mainContainer.scrollTop;
+                const windowHeight = mainContainer.clientHeight;
+                const scrollHeight = mainContainer.scrollHeight;
+                
+                // Calcular progreso del scroll (0 a 1)
+                // Al 15% del scroll total, la animación debe estar completa
+                const maxScroll = Math.max(scrollHeight - windowHeight, 1);
+                const scrollPercent = scrollTop / maxScroll;
+                
+                // Mapear: 0-15% del scroll = 0-1 en el progreso de animación
+                scrollProgress = Math.min(scrollPercent / 0.15, 1);
+                
+                // Aplicar animación suave de blanco a negro y texto a blanco
+                updateBackgroundAnimation();
+            }
+            
+            // Llamar al inicio para establecer estado inicial
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(function() {
+                        onPageScroll();
+                        updateBackgroundAnimation();
+                    }, 100);
+                });
+            } else {
+                setTimeout(function() {
+                    onPageScroll();
+                    updateBackgroundAnimation();
+                }, 100);
+            }
+
+            function updateBackgroundAnimation() {
+                const container = document.getElementById('main-container');
+                if (!container) return;
+                
+                // Interpolación suave usando easing
+                const eased = easeInOutCubic(scrollProgress);
+                
+                // Calcular colores: fondo de blanco a NEGRO con transición suave
+                const bgR = Math.round(255 - (255 * eased));
+                const bgG = Math.round(255 - (255 * eased));
+                const bgB = Math.round(255 - (255 * eased));
+                const bgColor = `rgb(${bgR}, ${bgG}, ${bgB})`;
+                
+                // Texto: asegurar contraste suficiente siempre
+                // Si el fondo es claro (eased < 0.5), texto oscuro
+                // Si el fondo es oscuro (eased >= 0.5), texto claro
+                // Nunca permitir que estén cerca (contraste mínimo de 100 en escala RGB)
+                let textR, textG, textB;
+                if (eased < 0.5) {
+                    // Fondo claro: texto oscuro (#1a1a1a)
+                    textR = 26;
+                    textG = 26;
+                    textB = 26;
+                } else {
+                    // Fondo oscuro: texto claro (#ffffff)
+                    textR = 255;
+                    textG = 255;
+                    textB = 255;
+                }
+                const textColor = `rgb(${textR}, ${textG}, ${textB})`;
+                
+                // Aplicar colores al contenedor con !important para forzar
+                container.style.setProperty('background', bgColor, 'important');
+                container.style.setProperty('color', textColor, 'important');
+                
+                // Actualizar secciones con efectos premium
+                const sections = document.querySelectorAll('.section');
+                sections.forEach(section => {
+                    if (eased < 0.5) {
+                        // Fondo claro con glassmorphism premium
+                        section.style.background = `rgba(255, 255, 255, ${0.7 - (0.3 * eased)})`;
+                        section.style.borderColor = `rgba(0, 0, 0, ${0.08 + (0.12 * eased)})`;
+                        section.style.boxShadow = `0 8px 32px rgba(0, 0, 0, ${0.06 - (0.04 * eased)}), 0 2px 8px rgba(0, 0, 0, ${0.04 - (0.02 * eased)})`;
+                    } else {
+                        // Fondo oscuro con glassmorphism premium
+                        section.style.background = `rgba(${bgR}, ${bgG}, ${bgB}, ${0.15 + (0.1 * eased)})`;
+                        section.style.borderColor = `rgba(255, 255, 255, ${0.1 + (0.1 * eased)})`;
+                        section.style.boxShadow = `0 8px 32px rgba(0, 0, 0, ${0.3 + (0.2 * eased)}), 0 2px 8px rgba(0, 0, 0, ${0.2 + (0.1 * eased)})`;
+                    }
+                });
+                
+                // Actualizar textos con mejor contraste
+                const h3Elements = document.querySelectorAll('h3');
+                h3Elements.forEach(h3 => {
+                    h3.style.color = textColor;
+                    h3.style.fontWeight = '600'; // Más bold para mejor legibilidad
+                });
+                
+                const pElements = document.querySelectorAll('p, li');
+                pElements.forEach(el => {
+                    // Asegurar buen contraste siempre
+                    if (eased < 0.5) {
+                        // Al inicio (fondo claro), texto oscuro para mejor legibilidad
+                        el.style.color = '#1a1a1a';
+                        el.style.fontWeight = '400';
+                    } else {
+                        // Al hacer scroll (fondo oscuro), texto claro
+                        el.style.color = '#ffffff';
+                        el.style.fontWeight = '400';
+                    }
+                });
+                
+                // Actualizar textos dentro de la caja de información del cliente
+                const clientInfoSection = document.getElementById('client-info-in-section');
+                if (clientInfoSection) {
+                    // Actualizar fondo de la caja según scroll
+                    if (eased < 0.5) {
+                        clientInfoSection.style.background = 'rgba(255, 255, 255, 0.95)';
+                        clientInfoSection.style.borderColor = 'rgba(255, 0, 0, 0.3)';
+                    } else {
+                        clientInfoSection.style.background = 'rgba(30, 30, 30, 0.95)';
+                        clientInfoSection.style.borderColor = 'rgba(255, 0, 0, 0.5)';
+                    }
+                    
+                    // Actualizar todos los textos dentro de la caja
+                    const clientTexts = clientInfoSection.querySelectorAll('p');
+                    clientTexts.forEach(p => {
+                        // El nombre y precio siempre en rojo
+                        if (p.id === 'client-name-text' || p.id === 'client-precio-text') {
+                            p.style.color = '#ff0000';
+                        } else if (p.id === 'client-company-text') {
+                            // Empresa: oscuro en fondo claro, claro en fondo oscuro
+                            p.style.color = eased < 0.5 ? '#1a1a1a' : '#ffffff';
+                        } else {
+                            // Títulos de sección (Objetivos, Alcance, etc.)
+                            if (p.textContent.match(/^(🎯|📋|⏱️|👥|💰)/)) {
+                                p.style.color = eased < 0.5 ? '#333' : '#ffffff';
+                                p.style.fontWeight = '700';
+                            } else {
+                                // Textos de contenido
+                                p.style.color = eased < 0.5 ? '#555' : '#e0e0e0';
+                            }
+                        }
+                    });
+                }
+                
+                // Mantener h1 y h2 en ROJO siempre (no cambian con scroll)
+                const h1Elements = document.querySelectorAll('h1');
+                h1Elements.forEach(h1 => {
+                    h1.style.background = 'linear-gradient(135deg, #ff0000 0%, #cc0000 100%)';
+                    h1.style.webkitBackgroundClip = 'text';
+                    h1.style.webkitTextFillColor = 'transparent';
+                });
+                
+                const h2Elements = document.querySelectorAll('h2');
+                h2Elements.forEach(h2 => {
+                    h2.style.color = '#ff0000'; // Siempre rojo
+                    h2.style.fontWeight = '700'; // Más bold
+                });
+                
+                // Actualizar logo según el scroll (más visible en fondo oscuro)
+                const logoContainer = document.getElementById('logo-container');
+                if (logoContainer) {
+                    // El logo se ve mejor con más opacidad en fondo oscuro
+                    logoContainer.style.opacity = eased > 0.5 ? '1' : '0.9';
+                }
+                
+                // Actualizar información del cliente según el scroll
+                const clientInfoBox = document.getElementById('client-info-box');
+                if (clientInfoBox) {
+                    if (eased < 0.5) {
+                        // Fondo claro
+                        clientInfoBox.style.background = 'rgba(255, 255, 255, 0.95)';
+                        clientInfoBox.style.borderColor = 'rgba(0, 0, 0, 0.08)';
+                    } else {
+                        // Fondo oscuro
+                        clientInfoBox.style.background = `rgba(${bgR}, ${bgG}, ${bgB}, 0.9)`;
+                        clientInfoBox.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    }
+                }
+                
+                const clientCompany = document.getElementById('client-company');
+                if (clientCompany) {
+                    clientCompany.style.color = eased < 0.5 ? '#333' : textColor;
+                }
+                
+                const clientDetails = document.getElementById('client-details');
+                if (clientDetails) {
+                    clientDetails.style.color = eased < 0.5 ? '#666' : textColor;
+                }
+                
+                // Actualizar textos del circuito para mejor contraste
+                const circuitDescriptions = document.querySelectorAll('.circuit-step-description');
+                circuitDescriptions.forEach(desc => {
+                    if (eased < 0.5) {
+                        // Fondo claro: texto oscuro para mejor legibilidad
+                        desc.style.color = '#333';
+                    } else {
+                        // Fondo oscuro: texto claro
+                        desc.style.color = textColor;
+                    }
+                });
+                
+                const circuitTitles = document.querySelectorAll('.circuit-step-title');
+                circuitTitles.forEach(title => {
+                    const step = title.closest('.circuit-step');
+                    if (step && step.classList.contains('active')) {
+                        title.style.color = '#ff0000';
+                    } else if (eased < 0.5) {
+                        title.style.color = '#1a1a1a';
+                    } else {
+                        title.style.color = textColor;
+                    }
+                });
+                
+                // Actualizar instrucciones
+                const instructions = document.getElementById('instructions');
+                if (instructions) {
+                    instructions.style.color = textColor;
+                    instructions.style.background = `rgba(${bgR}, ${bgG}, ${bgB}, ${0.8})`;
+                    instructions.style.fontWeight = '500';
+                }
+            }
+
+            // Función de easing suave (cubic ease-in-out)
+            function easeInOutCubic(t) {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            }
+
+            // Variables para el control táctil
+            let lastTouchY = 0;
+            let isTouching = false;
+            
+            // Manejar el scroll
+            function onScroll(event) {
+                if (!car) return;
+                // Controlar la velocidad de rotación con el scroll
+                const delta = event.deltaY * 0.0001; // Sensibilidad del scroll
+                rotationSpeed += delta;
+                
+                // Limitar la velocidad (opcional, para evitar velocidades extremas)
+                rotationSpeed = Math.max(-0.05, Math.min(0.05, rotationSpeed));
+            }
+            
+            // Manejar eventos táctiles
+            function onTouchStart(event) {
+                if (!car) return;
+                if (event.touches.length > 0) {
+                    lastTouchY = event.touches[0].clientY;
+                    isTouching = true;
+                }
+            }
+            
+            function onTouchMove(event) {
+                if (!car || !isTouching) return;
+                event.preventDefault(); // Prevenir scroll nativo si es necesario
+                
+                if (event.touches.length > 0) {
+                    const currentTouchY = event.touches[0].clientY;
+                    const deltaY = lastTouchY - currentTouchY; // Invertido para que subir = acelerar
+                    const delta = deltaY * 0.0003; // Sensibilidad táctil (un poco más sensible que el scroll)
+                    
+                    rotationSpeed += delta;
+                    rotationSpeed = Math.max(-0.05, Math.min(0.05, rotationSpeed));
+                    
+                    lastTouchY = currentTouchY;
+                }
+            }
+            
+            function onTouchEnd(event) {
+                isTouching = false;
+            }
+
+            // Animación suave
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                if (carGroup && car) {
+                    // Aplicar fricción (frena gradualmente cuando no hay scroll)
+                    rotationSpeed *= friction;
+                    
+                    // Detener completamente si la velocidad es muy pequeña
+                    if (Math.abs(rotationSpeed) < minSpeed) {
+                        rotationSpeed = 0;
+                    }
+                    
+                    // Actualizar el ángulo de la trayectoria circular
+                    angle += rotationSpeed;
+                    
+                    // Calcular la posición del coche en el círculo
+                    const x = Math.cos(angle) * radius;
+                    const z = Math.sin(angle) * radius;
+                    
+                    // Mover el grupo del coche
+                    carGroup.position.x = x;
+                    carGroup.position.z = z;
+                    carGroup.position.y = 0;
+                    
+                    // Orientar el coche hacia la dirección del movimiento
+                    // La dirección tangente al círculo es perpendicular al radio
+                    const tangentX = -Math.sin(angle);
+                    const tangentZ = Math.cos(angle);
+                    
+                    // Calcular el punto hacia donde debe mirar el coche
+                    const lookX = x + tangentX;
+                    const lookZ = z + tangentZ;
+                    
+                    // Hacer que el coche mire hacia donde se mueve (conduciendo)
+                    car.lookAt(lookX, 0, lookZ);
+                    
+                    // Ajustar la rotación del coche según la orientación inicial del modelo
+                    car.rotateY(Math.PI / 2); // Ajuste según el modelo
+                    
+                    // Actualizar chispas
+                    updateSparks();
+                }
+                
+                if (renderer && scene && camera) {
+                    renderer.render(scene, camera);
+                }
+            }
+
+            function createSparkSystem() {
+                // Crear textura circular para partículas redondas
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const context = canvas.getContext('2d');
+                const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.3, 'rgba(200, 200, 200, 0.8)');
+                gradient.addColorStop(1, 'rgba(100, 100, 100, 0)');
+                context.fillStyle = gradient;
+                context.fillRect(0, 0, 64, 64);
+                const texture = new THREE.CanvasTexture(canvas);
+                
+                // Crear geometría y material para el humo
+                const sparkGeometry = new THREE.BufferGeometry();
+                const sparkMaterial = new THREE.PointsMaterial({
+                    map: texture,
+                    color: 0xaaaaaa,
+                    size: 0.4,
+                    transparent: true,
+                    opacity: 0.15,
+                    blending: THREE.NormalBlending,
+                    sizeAttenuation: true,
+                    depthWrite: false
+                });
+
+                // Crear partículas de humo (muy sutil, casi imperceptible)
+                for (let i = 0; i < 30; i++) {
+                    const spark = new THREE.Vector3();
+                    sparkParticles.push({
+                        position: spark,
+                        velocity: new THREE.Vector3(),
+                        life: 0,
+                        maxLife: 2,
+                        size: 0.3 + Math.random() * 0.2
+                    });
+                }
+
+                const positions = new Float32Array(sparkParticles.length * 3);
+                sparkGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                
+                sparkSystem = new THREE.Points(sparkGeometry, sparkMaterial);
+                scene.add(sparkSystem);
+            }
+
+            function updateSparks() {
+                if (!car || !sparkSystem || sparkParticles.length === 0) return;
+                
+                const speed = Math.abs(rotationSpeed);
+                if (speed < 0.001) {
+                    // Ocultar humo si está parado
+                    sparkSystem.visible = false;
+                    return;
+                }
+                
+                sparkSystem.visible = true;
+                
+                // Ajustar opacidad según la velocidad (muy rápido = un poco más intenso)
+                const veryHighSpeed = speed > 0.03; // Velocidad muy alta
+                if (veryHighSpeed) {
+                    // Un poquito más intenso cuando va muy rápido
+                    sparkSystem.material.opacity = 0.25;
+                    sparkSystem.material.size = 0.5;
+                } else {
+                    // Humo gris sutil normalmente
+                    sparkSystem.material.opacity = 0.15;
+                    sparkSystem.material.size = 0.4;
+                }
+                
+                const positions = sparkSystem.geometry.attributes.position;
+                
+                // Calcular posición de las ruedas TRASERAS (más atrás del coche)
+                const wheelY = -0.8; // Altura aproximada de las ruedas traseras
+                const wheelOffset = -3.5; // MUCHO más atrás del centro del coche (ruedas traseras)
+                const wheelWidth = 1.2; // Separación entre ruedas
+                
+                for (let i = 0; i < sparkParticles.length; i++) {
+                    const particle = sparkParticles[i];
+                    
+                    // Si la partícula está muerta, crear una nueva
+                    const speed = Math.abs(rotationSpeed);
+                    const veryHighSpeed = speed > 0.03;
+                    const spawnRate = veryHighSpeed ? 0.15 : 0.1; // Un poquito más cuando va muy rápido
+                    
+                    if (particle.life <= 0 || Math.random() < spawnRate) {
+                        // Calcular la dirección hacia atrás del coche (opuesta a donde mira)
+                        // El coche mira en dirección tangente al círculo
+                        const tangentX = -Math.sin(angle);
+                        const tangentZ = Math.cos(angle);
+                        
+                        // Posición trasera: desde el centro del coche, MUCHO más atrás (dirección opuesta a donde mira)
+                        const backX = -tangentX * wheelOffset;
+                        const backZ = -tangentZ * wheelOffset;
+                        
+                        // Centrado en la parte trasera, con pequeña variación para las dos ruedas
+                        const wheelSide = Math.random() > 0.5 ? 1 : -1;
+                        const sideX = Math.cos(angle) * wheelWidth * 0.3 * wheelSide;
+                        const sideZ = Math.sin(angle) * wheelWidth * 0.3 * wheelSide;
+                        
+                        particle.position.x = carGroup.position.x + backX + sideX;
+                        particle.position.y = wheelY + (Math.random() - 0.5) * 0.15;
+                        particle.position.z = carGroup.position.z + backZ + sideZ;
+                        
+                        // Velocidad del humo: hacia atrás (dirección opuesta a donde mira el coche)
+                        const speed = Math.abs(rotationSpeed);
+                        const veryHighSpeed = speed > 0.03;
+                        const speedMultiplier = veryHighSpeed ? 0.3 : 0.2; // Un poquito más cuando va muy rápido
+                        
+                        const backwardX = -tangentX * speedMultiplier;
+                        const backwardZ = -tangentZ * speedMultiplier;
+                        particle.velocity.x = backwardX + (Math.random() - 0.5) * 0.2;
+                        particle.velocity.y = Math.random() * 0.1 + 0.05;
+                        particle.velocity.z = backwardZ + (Math.random() - 0.5) * 0.2;
+                        
+                        particle.life = particle.maxLife;
+                    }
+                    
+                    // Actualizar posición (humo se dispersa más)
+                    particle.position.add(particle.velocity);
+                    // El humo se dispersa más y sube
+                    particle.velocity.x *= 0.98; // Fricción
+                    particle.velocity.z *= 0.98;
+                    particle.velocity.y *= 0.99; // Se desacelera al subir
+                    particle.life -= 0.015; // Dura más que las chispas
+                    
+                    // Actualizar en el buffer
+                    const i3 = i * 3;
+                    positions.array[i3] = particle.position.x;
+                    positions.array[i3 + 1] = particle.position.y;
+                    positions.array[i3 + 2] = particle.position.z;
+                }
+                
+                positions.needsUpdate = true;
+            }
+
+            // Ajustar tamaño de ventana
+            function onWindowResize() {
+                if (!camera || !renderer) return;
+                
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                
+                renderer.setSize(width, height);
+            }
+
+            // Función para animar el circuito
+            function animateCircuit() {
+                const circuitTracks = document.querySelectorAll('.circuit-track');
+                
+                circuitTracks.forEach(track => {
+                    const steps = track.querySelectorAll('.circuit-step');
+                    const fillLine = track.querySelector('.circuit-line-fill');
+                    const nodes = track.querySelectorAll('.circuit-node');
+                    
+                    if (!fillLine || steps.length === 0) return;
+                    
+                    // Animar según scroll - más lento y gradual
+                    let maxActiveStep = -1;
+                    let currentFillProgress = 0;
+                    
+                    steps.forEach((step, index) => {
+                        const stepRect = step.getBoundingClientRect();
+                        const viewportHeight = window.innerHeight;
+                        const stepTop = stepRect.top;
+                        const stepBottom = stepRect.bottom;
+                        
+                        // Calcular progreso más gradual (necesita estar más centrado en la vista)
+                        const stepCenter = stepTop + (stepRect.height / 2);
+                        const distanceFromCenter = Math.abs(viewportHeight / 2 - stepCenter);
+                        const maxDistance = viewportHeight * 0.35; // Área más pequeña = más lento
+                        const stepProgress = Math.max(0, Math.min(1, 1 - (distanceFromCenter / maxDistance)));
+                        
+                        if (stepProgress > 0.6) {
+                            step.classList.add('active');
+                            nodes[index]?.classList.add('active');
+                            maxActiveStep = index;
+                            
+                            // Calcular progreso de relleno más gradual
+                            const stepFillProgress = (stepProgress - 0.6) / 0.4; // Normalizar entre 0.6 y 1.0
+                            const baseFill = (index / steps.length) * 100;
+                            const stepFill = (1 / steps.length) * stepFillProgress * 100;
+                            currentFillProgress = Math.max(currentFillProgress, baseFill + stepFill);
+                            
+                            // Marcar anteriores como completados solo cuando este paso está muy activo
+                            if (stepProgress > 0.95) {
+                                for (let i = 0; i < index; i++) {
+                                    steps[i]?.classList.add('completed');
+                                    steps[i]?.classList.remove('active');
+                                    nodes[i]?.classList.add('completed');
+                                    nodes[i]?.classList.remove('active');
+                                }
+                            }
+                        } else {
+                            step.classList.remove('active');
+                            nodes[index]?.classList.remove('active');
+                        }
+                    });
+                    
+                    // Aplicar altura del fill de forma más gradual
+                    if (maxActiveStep >= 0) {
+                        const targetHeight = Math.min(currentFillProgress, 100);
+                        const currentHeight = parseFloat(fillLine.style.height) || 0;
+                        // Interpolación muy suave para movimiento más lento (solo 1.5% por frame)
+                        const newHeight = currentHeight + (targetHeight - currentHeight) * 0.015;
+                        fillLine.style.height = newHeight + '%';
+                    } else {
+                        const currentHeight = parseFloat(fillLine.style.height) || 0;
+                        const newHeight = currentHeight * 0.95; // Decaer gradualmente
+                        fillLine.style.height = newHeight + '%';
+                    }
+                });
+            }
+            
+            // Animar circuito en cada frame
+            let circuitAnimationId = null;
+            function startCircuitAnimation() {
+                if (circuitAnimationId) return;
+                function loop() {
+                    animateCircuit();
+                    circuitAnimationId = requestAnimationFrame(loop);
+                }
+                circuitAnimationId = requestAnimationFrame(loop);
+            }
+            
+            // Inicializar cuando se carga la página
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    init();
+                    setTimeout(updateBackgroundAnimation, 100);
+                    setTimeout(startCircuitAnimation, 300);
+                });
+            } else {
+                init();
+                setTimeout(updateBackgroundAnimation, 100);
+                setTimeout(startCircuitAnimation, 300);
+            }
+            
+            // También animar en scroll
+            const mainContainer = document.getElementById('main-container');
+            if (mainContainer) {
+                mainContainer.addEventListener('scroll', animateCircuit, { passive: true });
+            }
+            
+            // Cargar logo (primero del HTML si está inyectado, luego de la URL)
+            function loadLogo() {
+                const logoImg = document.getElementById('logo-img');
+                if (!logoImg) return;
+                
+                // Si el logo ya tiene un src (inyectado por el servidor), usarlo
+                if (logoImg.src && logoImg.src !== window.location.href && !logoImg.src.includes('data:,')) {
+                    logoImg.style.display = 'block';
+                    console.log('✅ Logo cargado desde HTML (inyectado por servidor):', logoImg.src);
+                    return;
+                }
+                
+                // Si no, intentar cargarlo desde parámetro de URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const logoUrl = urlParams.get('logo');
+                
+                if (logoUrl) {
+                    logoImg.src = decodeURIComponent(logoUrl);
+                    logoImg.style.display = 'block';
+                    console.log('✅ Logo cargado desde URL:', logoUrl);
+                } else {
+                    console.log('ℹ️ No se proporcionó logo (ni en HTML ni en URL)');
+                }
+            }
+            
+            // Cargar TODA la información del cliente desde parámetros de URL
+            function loadClientInfo() {
+                const urlParams = new URLSearchParams(window.location.search);
+                
+                // Nombre
+                const clientName = urlParams.get('clientName');
+                if (clientName) {
+                    const nameSection = document.getElementById('client-name-section');
+                    const nameText = document.getElementById('client-name-text');
+                    if (nameSection && nameText) {
+                        nameText.textContent = decodeURIComponent(clientName);
+                        nameSection.style.display = 'block';
+                    }
+                }
+                
+                // Empresa
+                const clientCompany = urlParams.get('clientCompany');
+                if (clientCompany) {
+                    const companySection = document.getElementById('client-company-section');
+                    const companyText = document.getElementById('client-company-text');
+                    if (companySection && companyText) {
+                        companyText.textContent = decodeURIComponent(clientCompany);
+                        companySection.style.display = 'block';
+                    }
+                }
+                
+                // Objetivos
+                const clientObjetivos = urlParams.get('clientObjetivos');
+                if (clientObjetivos) {
+                    const objetivosSection = document.getElementById('client-objetivos-section');
+                    const objetivosText = document.getElementById('client-objetivos-text');
+                    if (objetivosSection && objetivosText) {
+                        objetivosText.textContent = decodeURIComponent(clientObjetivos);
+                        objetivosSection.style.display = 'block';
+                    }
+                }
+                
+                // Alcance
+                const clientAlcance = urlParams.get('clientAlcance');
+                if (clientAlcance) {
+                    const alcanceSection = document.getElementById('client-alcance-section');
+                    const alcanceText = document.getElementById('client-alcance-text');
+                    if (alcanceSection && alcanceText) {
+                        alcanceText.textContent = decodeURIComponent(clientAlcance);
+                        alcanceSection.style.display = 'block';
+                    }
+                }
+                
+                // Timeline
+                const clientTimeline = urlParams.get('clientTimeline');
+                if (clientTimeline) {
+                    const timelineSection = document.getElementById('client-timeline-section');
+                    const timelineText = document.getElementById('client-timeline-text');
+                    if (timelineSection && timelineText) {
+                        timelineText.textContent = decodeURIComponent(clientTimeline);
+                        timelineSection.style.display = 'block';
+                    }
+                }
+                
+                // Equipo
+                const clientEquipo = urlParams.get('clientEquipo');
+                if (clientEquipo) {
+                    const equipoSection = document.getElementById('client-equipo-section');
+                    const equipoText = document.getElementById('client-equipo-text');
+                    if (equipoSection && equipoText) {
+                        equipoText.textContent = decodeURIComponent(clientEquipo);
+                        equipoSection.style.display = 'block';
+                    }
+                }
+                
+                // Precio
+                const clientPrecio = urlParams.get('clientPrecio');
+                if (clientPrecio) {
+                    const precioSection = document.getElementById('client-precio-section');
+                    const precioText = document.getElementById('client-precio-text');
+                    if (precioSection && precioText) {
+                        precioText.textContent = decodeURIComponent(clientPrecio);
+                        precioSection.style.display = 'block';
+                    }
+                }
+                
+                // Detalles adicionales
+                const clientDetails = urlParams.get('clientDetails');
+                if (clientDetails) {
+                    const detailsSection = document.getElementById('client-details-section');
+                    const detailsText = document.getElementById('client-details-text');
+                    if (detailsSection && detailsText) {
+                        detailsText.textContent = decodeURIComponent(clientDetails);
+                        detailsSection.style.display = 'block';
+                    }
+                }
+                
+                console.log('✅ Información del cliente cargada');
+            }
+            
+            // Cargar logo al iniciar
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadLogo();
+                    loadClientInfo();
+                });
+            } else {
+                loadLogo();
+                loadClientInfo();
+            }
+        </script>
+    </div>
+</body>
+</html>
