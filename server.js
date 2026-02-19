@@ -1069,6 +1069,7 @@ app.post('/api/create-client', async (req, res) => {
                                 body: JSON.stringify(uploadLogoData)
                             });
                             
+                            
                             if (logoUploadResponse.ok) {
                                 console.log(`✅ Logo guardado en GitHub: ${githubLogoPath}`);
                             }
