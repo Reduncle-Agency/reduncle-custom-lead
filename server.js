@@ -962,6 +962,100 @@ app.post('/api/create-client', async (req, res) => {
         const githubLogoPath = logoUrl ? `${githubFolderPath}/logo${path.extname(new URL(logoUrl).pathname).split('?')[0] || '.png'}` : null;
         const githubReadmePath = `${githubFolderPath}/README.md`;
         
+        // INYECTAR información del cliente en el HTML antes de guardar en GitHub
+        let htmlToSave = personalizedHtml;
+        
+        // Inyectar información del cliente en el HTML (igual que en /client/:clientId)
+        if (clientInfo.nombre) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-name-text"[^>]*><\/p>/i,
+                `<p style="font-size: 32px; font-weight: 800; color: #ff0000; margin-bottom: 8px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);" id="client-name-text">${clientInfo.nombre}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-name-section" style="display: none;[^"]*">/i,
+                '<div id="client-name-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.empresa) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-company-text"[^>]*><\/p>/i,
+                `<p style="font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;" id="client-company-text">${clientInfo.empresa}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-company-section" style="display: none;[^"]*">/i,
+                '<div id="client-company-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.objetivos) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-objetivos-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-objetivos-text">${clientInfo.objetivos}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-objetivos-section" style="display: none;[^"]*">/i,
+                '<div id="client-objetivos-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.alcance) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-alcance-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-alcance-text">${clientInfo.alcance}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-alcance-section" style="display: none;[^"]*">/i,
+                '<div id="client-alcance-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.timeline) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-timeline-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-timeline-text">${clientInfo.timeline}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-timeline-section" style="display: none;[^"]*">/i,
+                '<div id="client-timeline-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.equipo) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-equipo-text"[^>]*><\/p>/i,
+                `<p style="font-size: 17px; color: #555; line-height: 1.7; margin-left: 20px;" id="client-equipo-text">${clientInfo.equipo}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-equipo-section" style="display: none;[^"]*">/i,
+                '<div id="client-equipo-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        if (clientInfo.precio) {
+            htmlToSave = htmlToSave.replace(
+                /<p[^>]*id="client-precio-text"[^>]*><\/p>/i,
+                `<p style="font-size: 20px; font-weight: 700; color: #ff0000; line-height: 1.7; margin-left: 20px;" id="client-precio-text">${clientInfo.precio}</p>`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<div id="client-precio-section" style="display: none;[^"]*">/i,
+                '<div id="client-precio-section" style="display: block; margin-bottom: 16px;">'
+            );
+        }
+        
+        // Inyectar logo si está disponible
+        if (logoUrl) {
+            htmlToSave = htmlToSave.replace(
+                /<img id="logo-img"[^>]*src="[^"]*"/i,
+                `<img id="logo-img" src="${logoUrl}"`
+            );
+            htmlToSave = htmlToSave.replace(
+                /<img id="logo-img"[^>]*style="[^"]*"/i,
+                (match) => {
+                    if (match.includes('display: none')) {
+                        return match.replace('display: none', 'display: block');
+                    }
+                    return match;
+                }
+            );
+        }
+        
+        console.log('✅ Información del cliente inyectada en HTML para GitHub');
+        
         let githubUrl = null;
         const githubToken = process.env.GITHUB_TOKEN;
         const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
@@ -973,9 +1067,9 @@ app.post('/api/create-client', async (req, res) => {
         
         if (githubToken) {
             try {
-                // 1. Guardar el HTML (index.html)
+                // 1. Guardar el HTML (index.html) con información del cliente inyectada
                 console.log('📤 Subiendo HTML a GitHub...');
-                const htmlBase64 = Buffer.from(personalizedHtml, 'utf-8').toString('base64');
+                const htmlBase64 = Buffer.from(htmlToSave, 'utf-8').toString('base64');
                 let htmlSha = null;
                 
                 try {
