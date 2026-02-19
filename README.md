@@ -1,4 +1,4 @@
-# Reduncle Custom Lead - Servidor Dinámico
+EN DESARROLLO # Reduncle Custom Lead - Servidor Dinámico
 
 Servidor Node.js que genera páginas web personalizadas por cliente usando IA.
 
