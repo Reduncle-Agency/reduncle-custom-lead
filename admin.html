@@ -213,6 +213,21 @@
         
         <form id="create-client-form">
             <div class="form-group">
+                <label>👤 Nombre del Cliente:</label>
+                <input 
+                    type="text" 
+                    id="client-name" 
+                    name="clientName"
+                    required
+                    style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px; margin-bottom: 8px;"
+                    placeholder="Ejemplo: TechSolutions Pro"
+                />
+                <small>
+                    💡 Este nombre se usará para crear una carpeta en GitHub donde se guardará la página permanentemente.
+                </small>
+            </div>
+            
+            <div class="form-group">
                 <label>🖼️ Logo (opcional):</label>
                 
                 <div 
@@ -407,6 +422,15 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
             `;
             
             const prompt = document.getElementById('custom-prompt').value.trim();
+            const clientName = document.getElementById('client-name').value.trim();
+            
+            if (!clientName) {
+                alert('Por favor, escribe el nombre del cliente');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Crear Página Personalizada';
+                resultDiv.style.display = 'none';
+                return;
+            }
             
             if (!prompt) {
                 alert('Por favor, escribe un prompt con la información del cliente');
@@ -434,6 +458,7 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
             submitBtn.textContent = '⏳ Generando página... (puede tardar 1-3 min)';
             
             const formData = {
+                clientName: clientName,
                 prompt: prompt,
                 logoUrl: finalLogoUrl
             };
@@ -477,29 +502,71 @@ Destaca la innovación tecnológica, escalabilidad y soporte post-entrega. El to
                 
                 if (data.success) {
                     resultDiv.className = 'success';
+                    
+                    // Determinar qué URL mostrar (prioridad: permanente)
+                    const displayUrl = data.permanentUrl || data.url;
+                    const isPermanent = !!data.permanentUrl;
+                    
+                    let urlHtml = '';
+                    if (data.permanentUrl) {
+                        // URL permanente
+                        urlHtml = `
+                            <div class="url-container">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔗 URL Permanente (GitHub):</label>
+                                <div style="padding: 10px; background: #d4edda; border-radius: 5px; margin-bottom: 10px;">
+                                    <small style="color: #155724;">✅ Esta URL nunca caduca. La página está guardada permanentemente en GitHub.</small>
+                                </div>
+                                <div class="url-input-group">
+                                    <input 
+                                        type="text" 
+                                        id="client-url" 
+                                        value="${data.permanentUrl}" 
+                                        readonly
+                                    />
+                                    <button 
+                                        type="button" 
+                                        class="copy-btn"
+                                        onclick="copyUrl()"
+                                    >
+                                        📋 Copiar
+                                    </button>
+                                </div>
+                                <small>Click en "Copiar" para copiar la URL permanente al portapapeles</small>
+                            </div>
+                        `;
+                    } else {
+                        // URL temporal
+                        urlHtml = `
+                            <div class="url-container">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600;">⚠️ URL Temporal (Render):</label>
+                                <div style="padding: 10px; background: #fff3cd; border-radius: 5px; margin-bottom: 10px;">
+                                    <small style="color: #856404;">⚠️ Esta URL puede caducar si Render se reinicia. La página no se guardó en GitHub.</small>
+                                </div>
+                                <div class="url-input-group">
+                                    <input 
+                                        type="text" 
+                                        id="client-url" 
+                                        value="${data.url}" 
+                                        readonly
+                                    />
+                                    <button 
+                                        type="button" 
+                                        class="copy-btn"
+                                        onclick="copyUrl()"
+                                    >
+                                        📋 Copiar
+                                    </button>
+                                </div>
+                                <small>Click en "Copiar" para copiar la URL al portapapeles</small>
+                            </div>
+                        `;
+                    }
+                    
                     resultDiv.innerHTML = `
                         <strong>✅ ¡Página creada exitosamente!</strong><br><br>
-                        <div class="url-container">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔗 URL Personalizada:</label>
-                            <div class="url-input-group">
-                                <input 
-                                    type="text" 
-                                    id="client-url" 
-                                    value="${data.url}" 
-                                    readonly
-                                />
-                                <button 
-                                    type="button" 
-                                    class="copy-btn"
-                                    onclick="copyUrl()"
-                                >
-                                    📋 Copiar
-                                </button>
-                            </div>
-                            <small>Click en "Copiar" para copiar la URL al portapapeles</small>
-                        </div>
+                        ${urlHtml}
                         <div>
-                            <a href="${data.url}" target="_blank" class="view-link">
+                            <a href="${displayUrl}" target="_blank" class="view-link">
                                 👁️ Ver página personalizada →
                             </a>
                         </div>

@@ -876,9 +876,18 @@ app.post('/api/create-client', async (req, res) => {
     console.log('📋 Body recibido:', req.body ? 'Sí' : 'No');
     
     try {
-        const { prompt, logoUrl: logoUrlFromBody } = req.body;
+        const { clientName, prompt, logoUrl: logoUrlFromBody } = req.body;
+        console.log('👤 Nombre del cliente recibido:', clientName || 'No');
         console.log('📝 Prompt recibido:', prompt ? `Sí (${prompt.length} caracteres)` : 'No');
         console.log('🖼️ Logo URL recibida:', logoUrlFromBody || 'No');
+        
+        if (!clientName || !clientName.trim()) {
+            console.log('❌ Error: Nombre del cliente vacío');
+            return res.status(400).json({
+                success: false,
+                error: 'El nombre del cliente es requerido'
+            });
+        }
         
         if (!prompt || !prompt.trim()) {
             console.log('❌ Error: Prompt vacío');
@@ -938,7 +947,7 @@ app.post('/api/create-client', async (req, res) => {
             url: `/client/${clientId}`
         });
         
-        // Guardar HTML personalizado
+        // Guardar HTML personalizado localmente (backup)
         const publicDir = path.join(__dirname, 'public', 'clients');
         await fs.ensureDir(publicDir);
         await fs.writeFile(
@@ -946,45 +955,234 @@ app.post('/api/create-client', async (req, res) => {
             personalizedHtml
         );
         
-        // Construir URL con TODOS los parámetros de información del cliente y logo
-        let clientUrl = `${req.protocol}://${req.get('host')}/client/${clientId}`;
-        const urlParams = new URLSearchParams();
+        // Guardar en GitHub en carpeta del cliente
+        const sanitizedClientName = clientName.trim().replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+        const githubFolderPath = `public/clientes/${sanitizedClientName}`;
+        const githubHtmlPath = `${githubFolderPath}/index.html`;
+        const githubLogoPath = logoUrl ? `${githubFolderPath}/logo${path.extname(new URL(logoUrl).pathname).split('?')[0] || '.png'}` : null;
+        const githubReadmePath = `${githubFolderPath}/README.md`;
         
-        if (clientInfo.nombre) {
-            urlParams.append('clientName', encodeURIComponent(clientInfo.nombre));
-        }
-        if (clientInfo.empresa) {
-            urlParams.append('clientCompany', encodeURIComponent(clientInfo.empresa));
-        }
-        if (clientInfo.objetivos) {
-            urlParams.append('clientObjetivos', encodeURIComponent(clientInfo.objetivos));
-        }
-        if (clientInfo.alcance) {
-            urlParams.append('clientAlcance', encodeURIComponent(clientInfo.alcance));
-        }
-        if (clientInfo.timeline) {
-            urlParams.append('clientTimeline', encodeURIComponent(clientInfo.timeline));
-        }
-        if (clientInfo.equipo) {
-            urlParams.append('clientEquipo', encodeURIComponent(clientInfo.equipo));
-        }
-        if (clientInfo.precio) {
-            urlParams.append('clientPrecio', encodeURIComponent(clientInfo.precio));
-        }
-        if (logoUrl) {
-            urlParams.append('logo', encodeURIComponent(logoUrl));
+        let githubUrl = null;
+        const githubToken = process.env.GITHUB_TOKEN;
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        
+        console.log('🔍 Verificando GITHUB_TOKEN:', githubToken ? '✅ Configurado' : '❌ NO configurado');
+        console.log('📁 Carpeta del cliente en GitHub:', githubFolderPath);
+        console.log('📄 Ruta HTML en GitHub:', githubHtmlPath);
+        
+        if (githubToken) {
+            try {
+                // 1. Guardar el HTML (index.html)
+                console.log('📤 Subiendo HTML a GitHub...');
+                const htmlBase64 = Buffer.from(personalizedHtml, 'utf-8').toString('base64');
+                let htmlSha = null;
+                
+                try {
+                    const getHtmlUrl = `https://api.github.com/repos/${githubRepo}/contents/${githubHtmlPath}`;
+                    console.log('🔍 Verificando si existe HTML en GitHub:', getHtmlUrl);
+                    const getHtmlResponse = await fetch(getHtmlUrl, {
+                        headers: {
+                            'Authorization': `token ${githubToken}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getHtmlResponse.ok) {
+                        const fileData = await getHtmlResponse.json();
+                        htmlSha = fileData.sha;
+                        console.log('📝 HTML existente encontrado, SHA:', htmlSha.substring(0, 10) + '...');
+                    } else {
+                        console.log('📝 HTML no existe aún, se creará nuevo');
+                    }
+                } catch (e) {
+                    console.log('📝 HTML no existe aún (error esperado):', e.message);
+                }
+                
+                const uploadHtmlUrl = `https://api.github.com/repos/${githubRepo}/contents/${githubHtmlPath}`;
+                const uploadHtmlData = {
+                    message: `Crear/actualizar página HTML para cliente: ${clientName}`,
+                    content: htmlBase64,
+                    branch: githubBranch
+                };
+                if (htmlSha) uploadHtmlData.sha = htmlSha;
+                
+                console.log('📤 Subiendo HTML a:', uploadHtmlUrl);
+                const htmlResponse = await fetch(uploadHtmlUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(uploadHtmlData)
+                });
+                
+                if (htmlResponse.ok) {
+                    const htmlResult = await htmlResponse.json();
+                    console.log(`✅ HTML guardado en GitHub: ${githubHtmlPath}`);
+                    console.log(`✅ Commit SHA: ${htmlResult.commit.sha.substring(0, 10)}...`);
+                } else {
+                    const errorText = await htmlResponse.text();
+                    console.error('❌ Error al guardar HTML:', htmlResponse.status, htmlResponse.statusText);
+                    console.error('❌ Detalles:', errorText);
+                }
+                
+                // 2. Guardar el logo en la carpeta del cliente (si existe)
+                if (logoUrl && githubLogoPath) {
+                    try {
+                        // Descargar el logo desde la URL
+                        const logoResponse = await fetch(logoUrl);
+                        if (logoResponse.ok) {
+                            const logoBuffer = await logoResponse.arrayBuffer();
+                            const logoBase64 = Buffer.from(logoBuffer).toString('base64');
+                            
+                            let logoSha = null;
+                            try {
+                                const getLogoUrl = `https://api.github.com/repos/${githubRepo}/contents/${githubLogoPath}`;
+                                const getLogoResponse = await fetch(getLogoUrl, {
+                                    headers: {
+                                        'Authorization': `token ${githubToken}`,
+                                        'Accept': 'application/vnd.github.v3+json'
+                                    }
+                                });
+                                if (getLogoResponse.ok) {
+                                    const fileData = await getLogoResponse.json();
+                                    logoSha = fileData.sha;
+                                }
+                            } catch (e) {}
+                            
+                            const uploadLogoUrl = `https://api.github.com/repos/${githubRepo}/contents/${githubLogoPath}`;
+                            const uploadLogoData = {
+                                message: `Guardar logo para cliente: ${clientName}`,
+                                content: logoBase64,
+                                branch: githubBranch
+                            };
+                            if (logoSha) uploadLogoData.sha = logoSha;
+                            
+                            const logoUploadResponse = await fetch(uploadLogoUrl, {
+                                method: 'PUT',
+                                headers: {
+                                    'Authorization': `token ${githubToken}`,
+                                    'Accept': 'application/vnd.github.v3+json',
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(uploadLogoData)
+                            });
+                            
+                            if (logoUploadResponse.ok) {
+                                console.log(`✅ Logo guardado en GitHub: ${githubLogoPath}`);
+                            }
+                        }
+                    } catch (logoError) {
+                        console.error('⚠️ Error al guardar logo:', logoError.message);
+                    }
+                }
+                
+                // 3. Crear README.md con el enlace permanente
+                const permanentUrl = `${req.protocol}://${req.get('host')}/github-page/${sanitizedClientName}`;
+                const readmeContent = `# Página Personalizada - ${clientName}
+
+## 📋 Información del Cliente
+- **Nombre:** ${clientInfo.nombre || clientName}
+- **Empresa:** ${clientInfo.empresa || 'N/A'}
+- **Creado:** ${new Date().toLocaleString('es-ES')}
+
+## 🔗 Enlace Permanente
+**URL:** ${permanentUrl}
+
+Este enlace es **permanente** y no caduca. La página está guardada en GitHub y siempre estará disponible.
+
+## 📁 Archivos
+- \`index.html\` - Página personalizada completa
+${logoUrl ? `- \`logo${path.extname(new URL(logoUrl).pathname).split('?')[0] || '.png'}\` - Logo del cliente` : '- Sin logo'}
+
+## 📝 Notas
+${clientInfo.objetivos ? `**Objetivos:** ${clientInfo.objetivos}\n` : ''}${clientInfo.alcance ? `**Alcance:** ${clientInfo.alcance}\n` : ''}${clientInfo.precio ? `**Precio:** ${clientInfo.precio}\n` : ''}
+`;
+                
+                const readmeBase64 = Buffer.from(readmeContent, 'utf-8').toString('base64');
+                let readmeSha = null;
+                
+                try {
+                    const getReadmeUrl = `https://api.github.com/repos/${githubRepo}/contents/${githubReadmePath}`;
+                    const getReadmeResponse = await fetch(getReadmeUrl, {
+                        headers: {
+                            'Authorization': `token ${githubToken}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getReadmeResponse.ok) {
+                        const fileData = await getReadmeResponse.json();
+                        readmeSha = fileData.sha;
+                    }
+                } catch (e) {}
+                
+                const uploadReadmeUrl = `https://api.github.com/repos/${githubRepo}/contents/${githubReadmePath}`;
+                const uploadReadmeData = {
+                    message: `Crear/actualizar README para cliente: ${clientName}`,
+                    content: readmeBase64,
+                    branch: githubBranch
+                };
+                if (readmeSha) uploadReadmeData.sha = readmeSha;
+                
+                console.log('📤 Subiendo README a GitHub...');
+                const readmeResponse = await fetch(uploadReadmeUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(uploadReadmeData)
+                });
+                
+                if (readmeResponse.ok) {
+                    const readmeResult = await readmeResponse.json();
+                    console.log(`✅ README guardado en GitHub: ${githubReadmePath}`);
+                    console.log(`✅ Commit SHA: ${readmeResult.commit.sha.substring(0, 10)}...`);
+                } else {
+                    const errorText = await readmeResponse.text();
+                    console.error('❌ Error al guardar README:', readmeResponse.status, readmeResponse.statusText);
+                    console.error('❌ Detalles:', errorText);
+                }
+                
+                // URL permanente - solo si el HTML se guardó correctamente
+                const htmlResponseCheck = await fetch(`https://api.github.com/repos/${githubRepo}/contents/${githubHtmlPath}`, {
+                    headers: {
+                        'Authorization': `token ${githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                if (htmlResponseCheck.ok) {
+                    githubUrl = permanentUrl;
+                    console.log(`✅ Carpeta del cliente creada en GitHub: ${githubFolderPath}`);
+                    console.log(`🌐 URL permanente: ${githubUrl}`);
+                } else {
+                    console.error('⚠️ El HTML no se guardó correctamente, no se puede crear URL permanente');
+                }
+                
+            } catch (githubError) {
+                console.error('⚠️ Error al guardar en GitHub (continuando de todas formas):', githubError.message);
+                console.error('⚠️ Stack:', githubError.stack);
+            }
+        } else {
+            console.log('⚠️ GITHUB_TOKEN no configurado, la página solo estará disponible localmente');
         }
         
-        if (urlParams.toString()) {
-            clientUrl += '?' + urlParams.toString();
-        }
+        // Construir URL: prioridad GitHub (persistente), luego local (temporal)
+        let clientUrl = githubUrl || `${req.protocol}://${req.get('host')}/client/${clientId}`;
         
         // Log en consola (visible en Render logs)
         console.log('═══════════════════════════════════════════════════════');
         console.log('✅ CLIENTE CREADO EXITOSAMENTE');
         console.log('═══════════════════════════════════════════════════════');
+        console.log('👤 Nombre del Cliente:', clientName);
         console.log('📋 ID del Cliente:', clientId);
-        console.log('🔗 URL Personalizada:', clientUrl);
+        console.log('📁 Carpeta en GitHub:', githubFolderPath);
+        console.log('🔗 URL Personalizada (GitHub):', githubUrl || 'No se guardó en GitHub');
+        console.log('🔗 URL Local (Render):', `${req.protocol}://${req.get('host')}/client/${clientId}`);
+        console.log('🔗 URL Final Devuelta:', clientUrl);
         console.log('📝 Prompt (primeros 200 caracteres):', promptText.substring(0, 200) + (promptText.length > 200 ? '...' : ''));
         console.log('⏰ Creado:', new Date().toISOString());
         console.log('═══════════════════════════════════════════════════════');
@@ -995,8 +1193,10 @@ app.post('/api/create-client', async (req, res) => {
         res.json({
             success: true,
             clientId: clientId,
-            url: clientUrl,
-            message: 'Cliente creado exitosamente',
+            url: clientUrl, // URL permanente (GitHub) o temporal (Render)
+            permanentUrl: githubUrl || null, // URL permanente si se guardó en GitHub
+            temporaryUrl: githubUrl ? null : `${req.protocol}://${req.get('host')}/client/${clientId}`, // URL temporal solo si no hay permanente
+            message: githubUrl ? 'Cliente creado exitosamente. Página guardada permanentemente en GitHub.' : 'Cliente creado exitosamente. Página disponible temporalmente en Render.',
             createdAt: new Date().toISOString()
         });
     } catch (error) {
@@ -1005,6 +1205,37 @@ app.post('/api/create-client', async (req, res) => {
             success: false,
             error: error.message
         });
+    }
+});
+
+// Endpoint para servir página desde GitHub por nombre de cliente
+app.get('/github-page/:clientName', async (req, res) => {
+    try {
+        const { clientName } = req.params;
+        const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+        const githubRepo = process.env.GITHUB_REPO || 'Reduncle-Agency/reduncle-custom-lead';
+        const githubBranch = process.env.GITHUB_BRANCH || 'main';
+        const githubFilePath = `public/clientes/${sanitizedClientName}/index.html`;
+        
+        // Obtener el HTML desde GitHub
+        const githubRawUrl = `https://raw.githubusercontent.com/${githubRepo}/${githubBranch}/${githubFilePath}`;
+        
+        try {
+            const response = await fetch(githubRawUrl);
+            if (response.ok) {
+                const html = await response.text();
+                res.setHeader('Content-Type', 'text/html');
+                res.send(html);
+            } else {
+                res.status(404).send('Página no encontrada en GitHub');
+            }
+        } catch (error) {
+            console.error('Error al obtener página desde GitHub:', error);
+            res.status(500).send('Error al cargar la página desde GitHub');
+        }
+    } catch (error) {
+        console.error('Error en /github-page:', error);
+        res.status(500).send('Error del servidor');
     }
 });
 
